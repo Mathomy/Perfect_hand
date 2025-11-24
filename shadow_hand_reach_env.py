@@ -34,8 +34,8 @@ class AdroitHandReachEnv(gym.Env):
         self.data = mujoco.MjData(self.model)
 
         # Contrôler tous les actuateurs disponibles
-        self.index_actuators = [6, 7, 8, 9]
-        self.thumb_actuators = [23, 24, 25, 26, 27]
+        self.index_actuators = [2, 3, 4, 5]    
+        self.thumb_actuators = [19, 20, 21, 22, 23]  
         self.used_actuators = self.index_actuators + self.thumb_actuators
 
         self.action_space = spaces.Box(
@@ -201,3 +201,9 @@ class AdroitHandReachEnv(gym.Env):
         for i in range(self.model.nbody):
             print(i, self.model.body(i).name)
     
+
+    def debug_actuators(self): # Affiche la liste des actuateurs
+        print("=== Liste des actuateurs ===")
+        print("nu =", self.model.nu)
+        for i in range(self.model.nu):
+            print(i, self.model.actuator(i).name)

@@ -38,5 +38,8 @@ def evaluate_model():
 
 
 if __name__ == "__main__":
-    # train_ppo()      # lance l'entraînement
-    evaluate_model() # décommente pour tester visuellement
+    # env_train = AdroitHandReachEnv(render_mode=None)
+    # env_train.debug_actuators()
+
+    train_ppo()      # lance l'entraînement
+    #evaluate_model() # décommente pour tester visuellement
