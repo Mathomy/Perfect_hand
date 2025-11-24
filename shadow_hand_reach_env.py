@@ -34,9 +34,16 @@ class AdroitHandReachEnv(gym.Env):
         self.data = mujoco.MjData(self.model)
 
         # Contrôler tous les actuateurs disponibles
-        self.n_actuators = self.model.nu
-        print("Nombre d'actuateurs:", self.n_actuators)
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.n_actuators,), dtype=np.float32)
+        self.index_actuators = [6, 7, 8, 9]
+        self.thumb_actuators = [23, 24, 25, 26, 27]
+        self.used_actuators = self.index_actuators + self.thumb_actuators
+
+        self.action_space = spaces.Box(
+            low=-1.0, 
+            high=1.0, 
+            shape=(len(self.used_actuators),),
+            dtype=np.float32
+        )
 
         # Observation : qpos (positions des articulations) + target (3D)
         obs_dim = self.model.nq + 3
@@ -77,13 +84,17 @@ class AdroitHandReachEnv(gym.Env):
         ], dtype=np.float32)
 
     def _compute_reward(self):
-        thumb_pos = self.data.xpos[self.thumb_body_id].copy()
-        finger_pos = self.data.xpos[self.finger_body_id].copy()
+        thumb = self.data.xpos[self.thumb_body_id]
+        index = self.data.xpos[self.finger_body_id]
 
-        mid_point = 0.5 * (thumb_pos + finger_pos)
+        dist = np.linalg.norm(thumb - index)
 
-        dist = np.linalg.norm(mid_point - self.target_pos)
-        reward = -dist
+        reward = -dist      # reward principal
+        reward += 1.0 / (dist + 0.01)  # bonus si très proche
+
+        if dist < 0.015:
+            reward += 5.0  # big success bonus
+
         return reward, dist
 
     # API Gymnasium
@@ -137,27 +148,46 @@ class AdroitHandReachEnv(gym.Env):
     #         self.viewer.sync()
 
     #     return obs, reward, terminated, truncated, info
-
     def step(self, action):
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        self.data.ctrl[:] = action
 
-        n_substeps = 5
-        for _ in range(n_substeps):
+        action = np.clip(action, -1, 1)
+
+        # Remettre à zéro toutes les autres articulations
+        self.data.ctrl[:] = 0.0
+
+        # Appliquer seulement les actions pour pouce + index
+        self.data.ctrl[self.used_actuators] = action
+
+        # Simulation
+        for _ in range(5):
             mujoco.mj_step(self.model, self.data)
 
         obs = self._get_obs()
         reward, dist = self._compute_reward()
-        terminated = dist < 0.01
+        terminated = dist < 0.015
         truncated = False
-        info = {"distance": dist}
 
-        # Synchroniser avec le temps réel
-        if self.render_mode == "human" and self.viewer is not None:
-            self.viewer.sync()
-            time.sleep(1 / 60)  # 60 FPS
+        return obs, reward, terminated, truncated, {"distance": dist}
+    # def step(self, action):
+    #     action = np.clip(action, self.action_space.low, self.action_space.high)
+    #     self.data.ctrl[:] = action
 
-        return obs, reward, terminated, truncated, info
+    #     n_substeps = 5
+    #     for _ in range(n_substeps):
+    #         mujoco.mj_step(self.model, self.data)
+
+    #     obs = self._get_obs()
+    #     reward, dist = self._compute_reward()
+    #     terminated = dist < 0.01
+    #     truncated = False
+    #     info = {"distance": dist}
+
+    #     # Synchroniser avec le temps réel
+    #     if self.render_mode == "human" and self.viewer is not None:
+    #         self.viewer.sync()
+    #         time.sleep(1 / 60)  # 60 FPS
+
+    #     return obs, reward, terminated, truncated, info
     
 
     def render(self):
