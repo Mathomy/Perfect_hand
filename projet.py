@@ -50,28 +50,43 @@ def visualize_trained_model():
 
     obs, info = env.reset()
 
-    # Viewer passif : on contrôle la simu nous-mêmes
-    with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
+    # # Viewer passif : on contrôle la simu nous-mêmes
+    # with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
+    #     for _ in range(1000):
+    #         action, _ = model.predict(obs, deterministic=True)
+    #         obs, reward, terminated, truncated, info = env.step(action)
+    #         print("dist:", info["distance"], "reward:", reward)
+    #         # Affiche un peu ce qui se passe dans le terminal si tu veux
+    #         # print("action:", action, "distance:", info["distance"])
+
+    #         viewer.sync()
+
+    #         if terminated or truncated:
+    #             obs, info = env.reset()
+    with viewer.launch_passive(env.model, env.data) as v:
         for _ in range(1000):
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
-            print("dist:", info["distance"], "reward:", reward)
-            # Affiche un peu ce qui se passe dans le terminal si tu veux
-            # print("action:", action, "distance:", info["distance"])
 
-            viewer.sync()
+            print(
+                "dist_fingers:", info["dist_fingers"],
+                "dist_to_target:", info["dist_to_target"],
+                "reward:", reward
+            )
+
+            v.sync()
 
             if terminated or truncated:
                 obs, info = env.reset()
 
+
     env.close()
 
-
-if __name__ == "__main__":
-    # env_train = AdroitHandReachEnv(render_mode=None)
+if __name__ == "__main__": 
+    # env_train = AdroitHandReachEnv(render_mode=None) 
     # env_train.debug_actuators()
-
     #train_ppo()      # lance l'entraînement
     
     #evaluate_model() # décommente pour tester visuellement
     visualize_trained_model()
+    #visualize_random_actions()

@@ -49,8 +49,8 @@ class AdroitHandReachEnv(gym.Env):
         self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(obs_dim,),dtype=np.float32)
 
         # On met des noms par défaut, à vérifier avec un script de listing
-        self.thumb_body_name =  "thtip"  # placeholder
-        self.finger_body_name = "fftip"  # placeholder
+        self.thumb_body_name =  "thdistal"  # placeholder
+        self.finger_body_name = "ffdistal"  # placeholder
 
         try:
             self.thumb_body_id = mujoco.mj_name2id(
@@ -88,21 +88,48 @@ class AdroitHandReachEnv(gym.Env):
             0.25 + 0.05 * self.np_random.uniform(-1, 1),
         ], dtype=np.float32)
 
+    # def _compute_reward(self):
+    #     thumb_pos = self.data.xpos[self.thumb_body_id].copy()
+    #     index_pos = self.data.xpos[self.finger_body_id].copy()
+
+    #     dist = np.linalg.norm(thumb_pos - index_pos)
+
+    #     reward = -dist
+    #     reward += 1.0 / (dist + 0.01)  # bonus dense
+    #     if dist < 0.015:
+    #         reward += 5.0  # succès
+
+    #     # Optionnel : target dynamique
+    #     self.target_pos = 0.5 * (thumb_pos + index_pos) + np.array([0,0,0.01])
+
+    #     return reward, dist
+
     def _compute_reward(self):
+        # Positions du pouce et de l'index dans le monde
         thumb_pos = self.data.xpos[self.thumb_body_id].copy()
         index_pos = self.data.xpos[self.finger_body_id].copy()
 
-        dist = np.linalg.norm(thumb_pos - index_pos)
+        # Distance entre le pouce et l'index
+        dist_fingers = np.linalg.norm(thumb_pos - index_pos)
 
-        reward = -dist
-        reward += 1.0 / (dist + 0.01)  # bonus dense
-        if dist < 0.015:
-            reward += 5.0  # succès
+        # Distance du milieu des deux doigts à la target
+        mid_pos = 0.5 * (thumb_pos + index_pos)
+        dist_to_target = np.linalg.norm(mid_pos - self.target_pos)
 
-        # Optionnel : target dynamique
-        self.target_pos = 0.5 * (thumb_pos + index_pos) + np.array([0,0,0.01])
+        # Reward :
+        # - on veut rapprocher les doigts entre eux ET de la cible
+        reward = 0.0
+        reward += -10.0 * dist_fingers     # rapprocher pouce/index
+        reward += -10.0 * dist_to_target   # rapprocher du point cible
 
-        return reward, dist
+        # Bonus si les doigts sont très proches
+        if dist_fingers < 0.03:
+            reward += 1.0
+        if dist_fingers < 0.015:
+            reward += 5.0
+
+        return reward, dist_fingers, dist_to_target
+
 
     # API Gymnasium
 
@@ -174,11 +201,17 @@ class AdroitHandReachEnv(gym.Env):
 
 
         obs = self._get_obs()
-        reward, dist = self._compute_reward()
-        terminated = dist < 0.015
+        # reward, dist = self._compute_reward()
+        reward, dist_fingers, dist_to_target = self._compute_reward()
+        terminated = dist_fingers < 0.015
         truncated = False
 
-        info = {"distance": dist, "reward": reward}
+        #info = {"distance": dist, "reward": reward}
+        info = {
+        "dist_fingers": dist_fingers,
+        "dist_to_target": dist_to_target,
+        "reward": reward,
+        }
 
         return obs, reward, terminated, truncated, info
     # def step(self, action):
