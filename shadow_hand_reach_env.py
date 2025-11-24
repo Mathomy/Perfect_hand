@@ -3,7 +3,6 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import mujoco
-import mujoco.viewer
 import time
 
 
@@ -50,8 +49,8 @@ class AdroitHandReachEnv(gym.Env):
         self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(obs_dim,),dtype=np.float32)
 
         # On met des noms par défaut, à vérifier avec un script de listing
-        self.thumb_body_name = "fftip"   # placeholder
-        self.finger_body_name = "thtip"  # placeholder
+        self.thumb_body_name =  "thtip"  # placeholder
+        self.finger_body_name = "fftip"  # placeholder
 
         try:
             self.thumb_body_id = mujoco.mj_name2id(
@@ -67,14 +66,27 @@ class AdroitHandReachEnv(gym.Env):
         # Cible (au-dessus de la paume) - valeur approximative, à ajuster ensuite
         self.target_pos = np.zeros(3, dtype=np.float32)
 
-
-        self.viewer = None
+        self.np_random = np.random.RandomState()
+        self.renderer = None
+        if self.render_mode == "rgb_array":
+            self.renderer = mujoco.Renderer(self.model)
 
     # Helpers internes
 
     def _get_obs(self):
         qpos = self.data.qpos.ravel()
         return np.concatenate([qpos, self.target_pos])
+
+    def _update_target(self):
+    # Assure que np_random est défini
+        if not hasattr(self, "np_random"):
+            self.np_random = np.random.RandomState()
+
+        self.target_pos = np.array([
+            0.05 * self.np_random.uniform(-1, 1),
+            -0.10 + 0.05 * self.np_random.uniform(-1, 1),
+            0.25 + 0.05 * self.np_random.uniform(-1, 1),
+        ], dtype=np.float32)
 
     def _compute_reward(self):
         thumb_pos = self.data.xpos[self.thumb_body_id].copy()
@@ -114,20 +126,13 @@ class AdroitHandReachEnv(gym.Env):
         obs = self._get_obs()
         info = {}
 
-        # Lancer le viewer si besoin
-        if self.render_mode == "human" and self.viewer is None:
-            self.viewer = mujoco.viewer.launch(self.model, self.data)
+        # # Lancer le viewer si besoin
+        # if self.render_mode == "human" and self.viewer is None:
+        #     self.viewer = mujoco.viewer.launch(self.model, self.data)
         return obs, info
-    def _update_target(self):
-    # Assure que np_random est défini
-        if not hasattr(self, "np_random"):
-            self.np_random = np.random.RandomState()
+    
 
-        self.target_pos = np.array([
-            0.05 * self.np_random.uniform(-1, 1),
-            -0.10 + 0.05 * self.np_random.uniform(-1, 1),
-            0.25 + 0.05 * self.np_random.uniform(-1, 1),
-        ], dtype=np.float32)
+    
     # def step(self, action):
     #     # Clip des actions
     #     action = np.clip(action, self.action_space.low, self.action_space.high)
@@ -158,7 +163,7 @@ class AdroitHandReachEnv(gym.Env):
         action = np.clip(action, -1, 1)
 
         # Remettre à zéro toutes les autres articulations
-        self.data.ctrl[:] = 0
+        self.data.ctrl[:] = 0.0
 
         # Appliquer seulement les actions pour pouce + index
         self.data.ctrl[self.used_actuators] = action
@@ -167,12 +172,15 @@ class AdroitHandReachEnv(gym.Env):
         for _ in range(5):
             mujoco.mj_step(self.model, self.data)
 
+
         obs = self._get_obs()
         reward, dist = self._compute_reward()
         terminated = dist < 0.015
         truncated = False
 
-        return obs, reward, terminated, truncated, {"distance": dist}
+        info = {"distance": dist, "reward": reward}
+
+        return obs, reward, terminated, truncated, info
     # def step(self, action):
     #     action = np.clip(action, self.action_space.low, self.action_space.high)
     #     self.data.ctrl[:] = action
@@ -196,12 +204,16 @@ class AdroitHandReachEnv(gym.Env):
     
 
     def render(self):
-        pass  # déjà géré par le viewer
+        if self.render_mode == "rgb_array" and self.renderer is not None:
+            self.renderer.update_scene(self.data)
+            img = self.renderer.render()
+            return img
 
     def close(self):
-        if self.viewer is not None:
-            self.viewer.close()
-            self.viewer = None
+        # if self.viewer is not None:
+        #     self.viewer.close()
+        #     self.viewer = None
+        pass
     def utilis(self) :
         for i in range(self.model.nbody):
             print(i, self.model.body(i).name)

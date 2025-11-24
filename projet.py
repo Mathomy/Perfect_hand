@@ -1,6 +1,6 @@
 from shadow_hand_reach_env import AdroitHandReachEnv
 from stable_baselines3 import PPO
-import torch
+
 def train_ppo():
     # --- Entraînement SANS rendu ---
     env_train = AdroitHandReachEnv(render_mode=None)
@@ -9,35 +9,69 @@ def train_ppo():
         policy="MlpPolicy",
         env=env_train,
         verbose=1,
-        device="cpu",
         tensorboard_log="./ppo_shadowhand/"
     )
 
-    model.learn(total_timesteps=1_000_000)
+    model.learn(total_timesteps=200_000)
 
     model.save("ppo_shadowhand")
     env_train.close()
     print("✔ Entraînement terminé et modèle sauvegardé.")
 
 
-def evaluate_model():
-    # --- Évaluation AVEC rendu ---
-    env_eval = AdroitHandReachEnv(render_mode="human")
-    env_eval.utilis()
-    model = PPO.load("ppo_shadowhand.zip", env=env_eval)
+# def evaluate_model():
+#     # --- Évaluation AVEC rendu ---
+#     env_eval = AdroitHandReachEnv(render_mode="human")
+#     env_eval.utilis()
+#     env_eval.debug_actuators()
+#     model = PPO.load("ppo_shadowhand.zip", env=env_eval)
 
-    obs, info = env_eval.reset()
+#     obs, info = env_eval.reset()
+#     try : 
+#         for _ in range(2000):
+#             action, _ = model.predict(obs, deterministic=True)
+#             print("action avant:", action)
+#             obs, reward, terminated, truncated, info = env_eval.step(action)
+#             print("action après", env_eval.data.qpos)
 
-    for _ in range(2000):
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, info = env_eval.step(action)
+#             if terminated or truncated:
+#                 obs, info = env_eval.reset()
+#     finally :
+#         env_eval.close()
+import mujoco
+import numpy as np
+from mujoco import viewer
 
-        if terminated or truncated:
-            obs, info = env_eval.reset()
 
-    env_eval.close()
+def visualize_trained_model():
+    """Affiche la main qui bouge avec le modèle entraîné, via mujoco.viewer."""
+    env = AdroitHandReachEnv(render_mode=None)
+    model = PPO.load("ppo_shadowhand.zip", env=env)
+
+    obs, info = env.reset()
+
+    # Viewer passif : on contrôle la simu nous-mêmes
+    with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
+        for _ in range(1000):
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, info = env.step(action)
+            print("dist:", info["distance"], "reward:", reward)
+            # Affiche un peu ce qui se passe dans le terminal si tu veux
+            # print("action:", action, "distance:", info["distance"])
+
+            viewer.sync()
+
+            if terminated or truncated:
+                obs, info = env.reset()
+
+    env.close()
 
 
 if __name__ == "__main__":
-    train_ppo()      # lance l'entraînement
-    # evaluate_model() # décommente pour tester visuellement
+    # env_train = AdroitHandReachEnv(render_mode=None)
+    # env_train.debug_actuators()
+
+    #train_ppo()      # lance l'entraînement
+    
+    #evaluate_model() # décommente pour tester visuellement
+    visualize_trained_model()
