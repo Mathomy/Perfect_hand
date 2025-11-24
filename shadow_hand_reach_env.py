@@ -123,8 +123,7 @@ class AdroitHandReachEnv(gym.Env):
 
         # Lancer le viewer si besoin
         if self.render_mode == "human" and self.viewer is None:
-            self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
-
+            self.viewer = mujoco.viewer.launch(self.model, self.data)
         return obs, info
 
     # def step(self, action):

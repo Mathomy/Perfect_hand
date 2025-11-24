@@ -1,24 +1,41 @@
 from shadow_hand_reach_env import AdroitHandReachEnv
+from stable_baselines3 import PPO
 
-def main():
-    env = AdroitHandReachEnv(render_mode="human")
+def train_ppo():
+    # --- Entraînement SANS rendu ---
+    env_train = AdroitHandReachEnv(render_mode=None)
 
-    obs, info = env.reset()
-    print("Observation shape:", obs.shape)
-    print("Action space:", env.action_space)
+    model = PPO(
+        policy="MlpPolicy",
+        env=env_train,
+        verbose=1,
+        tensorboard_log="./ppo_shadowhand/"
+    )
 
-    for t in range(300):
-        action = env.action_space.sample()
-        obs, reward, terminated, truncated, info = env.step(action)
+    model.learn(total_timesteps=200_000)
 
-        if t % 20 == 0:
-            print(f"Step {t} | Reward: {reward:.4f} | Distance: {info['distance']:.4f}")
+    model.save("ppo_shadowhand")
+    env_train.close()
+    print("✔ Entraînement terminé et modèle sauvegardé.")
+
+
+def evaluate_model():
+    # --- Évaluation AVEC rendu ---
+    env_eval = AdroitHandReachEnv(render_mode="human")
+    model = PPO.load("ppo_shadowhand.zip", env=env_eval)
+
+    obs, info = env_eval.reset()
+
+    for _ in range(2000):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, info = env_eval.step(action)
 
         if terminated or truncated:
-            print("Episode terminé, on reset.")
-            obs, info = env.reset()
+            obs, info = env_eval.reset()
 
-    env.close()
+    env_eval.close()
+
 
 if __name__ == "__main__":
-    main()
+    # train_ppo()      # lance l'entraînement
+    evaluate_model() # décommente pour tester visuellement
