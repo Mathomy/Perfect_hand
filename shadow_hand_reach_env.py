@@ -9,7 +9,7 @@ import time
 
 class AdroitHandReachEnv(gym.Env):
     """
-    Environnement simplifié de Reach pour l'Adroit/Shadow Hand.
+    Environnement à partir de Adroit (à la place de Reach).
 
     Objectif :
     - Le pouce et un doigt sélectionné doivent approcher une cible située au-dessus de la paume.
@@ -27,8 +27,6 @@ class AdroitHandReachEnv(gym.Env):
         if not os.path.exists(model_path):
             raise FileNotFoundError(
                 f"Le fichier {model_path} est introuvable. "
-                "Assure-toi que 'adroit_hand.xml' est dans le même dossier que ce script "
-                "et que le dossier 'resources' est bien présent."
             )
         
 
@@ -38,24 +36,13 @@ class AdroitHandReachEnv(gym.Env):
         # Contrôler tous les actuateurs disponibles
         self.n_actuators = self.model.nu
         print("Nombre d'actuateurs:", self.n_actuators)
-        self.action_space = spaces.Box(
-            low=-1.0,
-            high=1.0,
-            shape=(self.n_actuators,),
-            dtype=np.float32,
-        )
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.n_actuators,), dtype=np.float32)
 
         # Observation : qpos (positions des articulations) + target (3D)
         obs_dim = self.model.nq + 3
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(obs_dim,),
-            dtype=np.float32,
-        )
+        self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(obs_dim,),dtype=np.float32)
 
-        # ⚠️ On met des noms par défaut, à vérifier avec un script de listing
-        # Tu modifieras ces noms quand on aura listé les bodies (voir plus bas)
+        # On met des noms par défaut, à vérifier avec un script de listing
         self.thumb_body_name = "fftip"   # placeholder
         self.finger_body_name = "thtip"  # placeholder
 
@@ -67,8 +54,7 @@ class AdroitHandReachEnv(gym.Env):
                 self.model, mujoco.mjtObj.mjOBJ_BODY, self.finger_body_name
             )
         except Exception as e:
-            print("⚠️ Problème avec les noms de bodies (thumb/finger). "
-                  "On les corrigera après avoir listé les bodies.")
+            print("Problème avec les noms de bodies (thumb/finger). ")
             raise e
 
         # Cible (au-dessus de la paume) - valeur approximative, à ajuster ensuite
@@ -76,7 +62,7 @@ class AdroitHandReachEnv(gym.Env):
 
         self.viewer = None
 
-    # ----------------- Helpers internes -----------------
+    # Helpers internes
 
     def _get_obs(self):
         qpos = self.data.qpos.ravel()
@@ -100,7 +86,7 @@ class AdroitHandReachEnv(gym.Env):
         reward = -dist
         return reward, dist
 
-    # ----------------- API Gymnasium -----------------
+    # API Gymnasium
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -152,6 +138,7 @@ class AdroitHandReachEnv(gym.Env):
     #         self.viewer.sync()
 
     #     return obs, reward, terminated, truncated, info
+
     def step(self, action):
         action = np.clip(action, self.action_space.low, self.action_space.high)
         self.data.ctrl[:] = action
@@ -166,12 +153,13 @@ class AdroitHandReachEnv(gym.Env):
         truncated = False
         info = {"distance": dist}
 
-        # --- Synchroniser avec le temps réel ---
+        # Synchroniser avec le temps réel
         if self.render_mode == "human" and self.viewer is not None:
             self.viewer.sync()
             time.sleep(1 / 60)  # 60 FPS
 
         return obs, reward, terminated, truncated, info
+    
 
     def render(self):
         pass  # déjà géré par le viewer
