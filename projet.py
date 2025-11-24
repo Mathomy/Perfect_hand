@@ -22,6 +22,7 @@ def train_ppo():
 def evaluate_model():
     # --- Évaluation AVEC rendu ---
     env_eval = AdroitHandReachEnv(render_mode="human")
+    env_eval.utilis()
     model = PPO.load("ppo_shadowhand.zip", env=env_eval)
 
     obs, info = env_eval.reset()

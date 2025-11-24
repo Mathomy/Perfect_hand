@@ -167,3 +167,7 @@ class AdroitHandReachEnv(gym.Env):
         if self.viewer is not None:
             self.viewer.close()
             self.viewer = None
+    def utilis(self) :
+        for i in range(self.model.nbody):
+            print(i, self.model.body(i).name)
+    
