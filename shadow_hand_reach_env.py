@@ -24,9 +24,7 @@ class AdroitHandReachEnv(gym.Env):
         # Charger le modèle Mujoco de l'Adroit Hand
         model_path = os.path.join(os.path.dirname(__file__), "Adroit", "adroit_hand.xml")
         if not os.path.exists(model_path):
-            raise FileNotFoundError(
-                f"Le fichier {model_path} est introuvable. "
-            )
+            raise FileNotFoundError(f"Le fichier {model_path} est introuvable. ")
         
 
         self.model = mujoco.MjModel.from_xml_path(model_path)
@@ -64,7 +62,8 @@ class AdroitHandReachEnv(gym.Env):
             raise e
 
         # Cible (au-dessus de la paume) - valeur approximative, à ajuster ensuite
-        self.target_pos = np.zeros(3, dtype=np.float32)
+        self.target_pos = np.array([0.0, -0.10, 0.25], dtype=np.float32)
+
 
         self.np_random = np.random.RandomState()
         self.renderer = None
@@ -77,16 +76,16 @@ class AdroitHandReachEnv(gym.Env):
         qpos = self.data.qpos.ravel()
         return np.concatenate([qpos, self.target_pos])
 
-    def _update_target(self):
-    # Assure que np_random est défini
-        if not hasattr(self, "np_random"):
-            self.np_random = np.random.RandomState()
+    # def _update_target(self):
+    # # Assure que np_random est défini
+    #     if not hasattr(self, "np_random"):
+    #         self.np_random = np.random.RandomState()
 
-        self.target_pos = np.array([
-            0.05 * self.np_random.uniform(-1, 1),
-            -0.10 + 0.05 * self.np_random.uniform(-1, 1),
-            0.25 + 0.05 * self.np_random.uniform(-1, 1),
-        ], dtype=np.float32)
+    #     self.target_pos = np.array([
+    #         0.05 * self.np_random.uniform(-1, 1),
+    #         -0.10 + 0.05 * self.np_random.uniform(-1, 1),
+    #         0.25 + 0.05 * self.np_random.uniform(-1, 1),
+    #     ], dtype=np.float32)
 
     # def _compute_reward(self):
     #     thumb_pos = self.data.xpos[self.thumb_body_id].copy()
@@ -143,8 +142,9 @@ class AdroitHandReachEnv(gym.Env):
         self.data.qpos[:] = 0.0
         self.data.qvel[:] = 0.0
 
-        # Nouvelle cible
-        self._update_target()
+        # Cible FIXE au-dessus de la paume
+        self.target_pos = np.array([0.0, -0.10, 0.25], dtype=np.float32)
+
     
 
         # Recalcul des positions
