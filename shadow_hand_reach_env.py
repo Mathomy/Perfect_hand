@@ -31,7 +31,7 @@ class AdroitHandReachEnv(gym.Env):
         self.data = mujoco.MjData(self.model)
 
         # Contrôler tous les actuateurs disponibles
-        self.index_actuators = [2, 3, 4, 5]    
+        self.index_actuators = [6, 7, 8, 9]    
         self.thumb_actuators = [19, 20, 21, 22, 23]  
         self.used_actuators = self.index_actuators + self.thumb_actuators
 
@@ -48,7 +48,7 @@ class AdroitHandReachEnv(gym.Env):
 
         # On met des noms par défaut, à vérifier avec un script de listing
         self.thumb_body_name =  "thdistal"  # placeholder
-        self.finger_body_name = "ffdistal"  # placeholder
+        self.finger_body_name = "mfdistal"  # placeholder
 
         try:
             self.thumb_body_id = mujoco.mj_name2id(
@@ -122,9 +122,9 @@ class AdroitHandReachEnv(gym.Env):
         reward += -10.0 * dist_to_target   # rapprocher du point cible
 
         # Bonus si les doigts sont très proches
-        if dist_fingers < 0.03:
+        if dist_fingers < 0.00:
             reward += 1.0
-        if dist_fingers < 0.015:
+        if dist_fingers < 0.005:
             reward += 5.0
 
         return reward, dist_fingers, dist_to_target

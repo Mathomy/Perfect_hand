@@ -8,11 +8,12 @@ def train_ppo():
     model = PPO(
         policy="MlpPolicy",
         env=env_train,
+        device="cpu",
         verbose=1,
         tensorboard_log="./ppo_shadowhand/"
     )
 
-    model.learn(total_timesteps=200_000)
+    model.learn(total_timesteps=400_000)
 
     model.save("ppo_shadowhand")
     env_train.close()
@@ -115,6 +116,7 @@ def visualize_trained_model():
 if __name__ == "__main__": 
     # env_train = AdroitHandReachEnv(render_mode=None) 
     # env_train.debug_actuators()
+    # env_train.utilis()
     #train_ppo()      # lance l'entraînement
     
     #evaluate_model() # décommente pour tester visuellement
