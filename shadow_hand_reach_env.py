@@ -65,7 +65,8 @@ class AdroitHandReachEnv(gym.Env):
             raise e
 
         # Cible (au-dessus de la paume) - valeur approximative, à ajuster ensuite
-        self.target_pos = np.array([0.0, -0.1, 0.25], dtype=np.float32)
+        self.target_pos = np.zeros(3, dtype=np.float32)
+
 
         self.viewer = None
 
@@ -75,25 +76,19 @@ class AdroitHandReachEnv(gym.Env):
         qpos = self.data.qpos.ravel()
         return np.concatenate([qpos, self.target_pos])
 
-    def _update_target(self):
-        # Cible aléatoire au-dessus de la paume
-        self.target_pos = np.array([
-            0.05 * self.np_random.uniform(-1, 1),        # x
-            -0.10 + 0.05 * self.np_random.uniform(-1, 1),  # y
-            0.25 + 0.05 * self.np_random.uniform(-1, 1),   # z
-        ], dtype=np.float32)
-
     def _compute_reward(self):
-        thumb = self.data.xpos[self.thumb_body_id]
-        index = self.data.xpos[self.finger_body_id]
+        thumb_pos = self.data.xpos[self.thumb_body_id].copy()
+        index_pos = self.data.xpos[self.finger_body_id].copy()
 
-        dist = np.linalg.norm(thumb - index)
+        dist = np.linalg.norm(thumb_pos - index_pos)
 
-        reward = -dist      # reward principal
-        reward += 1.0 / (dist + 0.01)  # bonus si très proche
-
+        reward = -dist
+        reward += 1.0 / (dist + 0.01)  # bonus dense
         if dist < 0.015:
-            reward += 5.0  # big success bonus
+            reward += 5.0  # succès
+
+        # Optionnel : target dynamique
+        self.target_pos = 0.5 * (thumb_pos + index_pos) + np.array([0,0,0.01])
 
         return reward, dist
 
@@ -111,6 +106,7 @@ class AdroitHandReachEnv(gym.Env):
 
         # Nouvelle cible
         self._update_target()
+    
 
         # Recalcul des positions
         mujoco.mj_forward(self.model, self.data)
@@ -122,7 +118,16 @@ class AdroitHandReachEnv(gym.Env):
         if self.render_mode == "human" and self.viewer is None:
             self.viewer = mujoco.viewer.launch(self.model, self.data)
         return obs, info
+    def _update_target(self):
+    # Assure que np_random est défini
+        if not hasattr(self, "np_random"):
+            self.np_random = np.random.RandomState()
 
+        self.target_pos = np.array([
+            0.05 * self.np_random.uniform(-1, 1),
+            -0.10 + 0.05 * self.np_random.uniform(-1, 1),
+            0.25 + 0.05 * self.np_random.uniform(-1, 1),
+        ], dtype=np.float32)
     # def step(self, action):
     #     # Clip des actions
     #     action = np.clip(action, self.action_space.low, self.action_space.high)
@@ -153,7 +158,7 @@ class AdroitHandReachEnv(gym.Env):
         action = np.clip(action, -1, 1)
 
         # Remettre à zéro toutes les autres articulations
-        self.data.ctrl[:] = 0.0
+        self.data.ctrl[:] = 0
 
         # Appliquer seulement les actions pour pouce + index
         self.data.ctrl[self.used_actuators] = action

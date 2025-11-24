@@ -1,6 +1,6 @@
 from shadow_hand_reach_env import AdroitHandReachEnv
 from stable_baselines3 import PPO
-
+import torch
 def train_ppo():
     # --- Entraînement SANS rendu ---
     env_train = AdroitHandReachEnv(render_mode=None)
@@ -9,10 +9,11 @@ def train_ppo():
         policy="MlpPolicy",
         env=env_train,
         verbose=1,
+        device="cpu",
         tensorboard_log="./ppo_shadowhand/"
     )
 
-    model.learn(total_timesteps=200_000)
+    model.learn(total_timesteps=1_000_000)
 
     model.save("ppo_shadowhand")
     env_train.close()
@@ -38,8 +39,5 @@ def evaluate_model():
 
 
 if __name__ == "__main__":
-    # env_train = AdroitHandReachEnv(render_mode=None)
-    # env_train.debug_actuators()
-
     train_ppo()      # lance l'entraînement
-    #evaluate_model() # décommente pour tester visuellement
+    # evaluate_model() # décommente pour tester visuellement
