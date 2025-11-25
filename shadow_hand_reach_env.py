@@ -6,6 +6,8 @@ import mujoco
 import time
 
 
+
+
 class AdroitHandReachEnv(gym.Env):
     """
     Environnement à partir de Adroit (à la place de Reach).
@@ -16,59 +18,52 @@ class AdroitHandReachEnv(gym.Env):
     """
 
     metadata = {"render_modes": ["human"], "render_fps": 60}
+    FINGER_CONFIG = {
+        "thumb":  {"actuators": [19, 20, 21, 22, 23], "body": "thdistal"},
+        "index":  {"actuators": [2, 3, 4, 5],     "body": "ffdistal"},
+        "middle": {"actuators": [6, 7, 8, 9],     "body": "mf2"},
+        "ring":   {"actuators": [10, 11, 12, 13], "body": "rf2"},
+        "pinky":  {"actuators": [14, 15, 16, 17], "body": "lf2"},
+    }
 
-    def __init__(self, render_mode=None):
+    def __init__(self, render_mode=None, fingers=None, target_fingers=("thumb", "index")):
         super().__init__()
+
         self.render_mode = render_mode
 
-        # Charger le modèle Mujoco de l'Adroit Hand
-        model_path = os.path.join(os.path.dirname(__file__), "Adroit", "adroit_hand.xml")
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Le fichier {model_path} est introuvable. ")
-        
+        # --- doigts actifs ---
+        if fingers is None:
+            fingers = ["thumb", "index"]
+        self.fingers = fingers
+        self.target_fingers = target_fingers
 
-        self.model = mujoco.MjModel.from_xml_path(model_path)
-        self.data = mujoco.MjData(self.model)
+        # --- actuators utilisés ---
+        self.used_actuators = []
+        for f in self.fingers:
+            self.used_actuators += self.FINGER_CONFIG[f]["actuators"]
+        self.used_actuators = sorted(self.used_actuators)
 
-        # Contrôler tous les actuateurs disponibles
-        self.index_actuators = [2, 3, 4, 5]    
-        self.thumb_actuators = [19, 20, 21, 22, 23]  
-        self.used_actuators = self.index_actuators + self.thumb_actuators
-
+        # --- action space ---
         self.action_space = spaces.Box(
-            low=-1.0, 
-            high=1.0, 
+            low=-1.0,
+            high=1.0,
             shape=(len(self.used_actuators),),
             dtype=np.float32
         )
 
-        # Observation : qpos (positions des articulations) + target (3D)
-        obs_dim = self.model.nq + 3
-        self.observation_space = spaces.Box(low=-np.inf,high=np.inf,shape=(obs_dim,),dtype=np.float32)
+        # --- chargement modèle MuJoCo ---
+        model_path = os.path.join(os.path.dirname(__file__), "Adroit", "adroit_hand.xml")
+        self.model = mujoco.MjModel.from_xml_path(model_path)
+        self.data = mujoco.MjData(self.model)
 
-        # On met des noms par défaut, à vérifier avec un script de listing
-        self.thumb_body_name =  "thdistal"  # placeholder
-        self.finger_body_name = "ffdistal"  # placeholder
+        # --- body IDs ---
+        self.body_ids = {}
+        for f in self.fingers:
+            body_name = self.FINGER_CONFIG[f]["body"]
+            self.body_ids[f] = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, body_name)
 
-        try:
-            self.thumb_body_id = mujoco.mj_name2id(
-                self.model, mujoco.mjtObj.mjOBJ_BODY, self.thumb_body_name
-            )
-            self.finger_body_id = mujoco.mj_name2id(
-                self.model, mujoco.mjtObj.mjOBJ_BODY, self.finger_body_name
-            )
-        except Exception as e:
-            print("Problème avec les noms de bodies (thumb/finger). ")
-            raise e
-
-        # Cible (au-dessus de la paume) - valeur approximative, à ajuster ensuite
+        # --- target ---
         self.target_pos = np.array([0.0, -0.10, 0.25], dtype=np.float32)
-
-
-        self.np_random = np.random.RandomState()
-        self.renderer = None
-        if self.render_mode == "rgb_array":
-            self.renderer = mujoco.Renderer(self.model)
 
     # Helpers internes
 
@@ -76,59 +71,29 @@ class AdroitHandReachEnv(gym.Env):
         qpos = self.data.qpos.ravel()
         return np.concatenate([qpos, self.target_pos])
 
-    # def _update_target(self):
-    # # Assure que np_random est défini
-    #     if not hasattr(self, "np_random"):
-    #         self.np_random = np.random.RandomState()
-
-    #     self.target_pos = np.array([
-    #         0.05 * self.np_random.uniform(-1, 1),
-    #         -0.10 + 0.05 * self.np_random.uniform(-1, 1),
-    #         0.25 + 0.05 * self.np_random.uniform(-1, 1),
-    #     ], dtype=np.float32)
-
-    # def _compute_reward(self):
-    #     thumb_pos = self.data.xpos[self.thumb_body_id].copy()
-    #     index_pos = self.data.xpos[self.finger_body_id].copy()
-
-    #     dist = np.linalg.norm(thumb_pos - index_pos)
-
-    #     reward = -dist
-    #     reward += 1.0 / (dist + 0.01)  # bonus dense
-    #     if dist < 0.015:
-    #         reward += 5.0  # succès
-
-    #     # Optionnel : target dynamique
-    #     self.target_pos = 0.5 * (thumb_pos + index_pos) + np.array([0,0,0.01])
-
-    #     return reward, dist
 
     def _compute_reward(self):
-        # Positions du pouce et de l'index dans le monde
-        thumb_pos = self.data.xpos[self.thumb_body_id].copy()
-        index_pos = self.data.xpos[self.finger_body_id].copy()
+        f1, f2 = self.target_fingers
 
-        # Distance entre le pouce et l'index
-        dist_fingers = np.linalg.norm(thumb_pos - index_pos)
+        pos1 = self.data.xpos[self.body_ids[f1]]
+        pos2 = self.data.xpos[self.body_ids[f2]]
 
-        # Distance du milieu des deux doigts à la target
-        mid_pos = 0.5 * (thumb_pos + index_pos)
-        dist_to_target = np.linalg.norm(mid_pos - self.target_pos)
+        dist_fingers = np.linalg.norm(pos1 - pos2)
 
-        # Reward :
-        # - on veut rapprocher les doigts entre eux ET de la cible
-        reward = 0.0
-        reward += -10.0 * dist_fingers     # rapprocher pouce/index
-        reward += -10.0 * dist_to_target   # rapprocher du point cible
+        # Milieu
+        mid = 0.5 * (pos1 + pos2)
+        dist_target = np.linalg.norm(mid - self.target_pos)
 
-        # Bonus si les doigts sont très proches
+        # Reward générique
+        reward = -10 * dist_fingers - 10 * dist_target
+
+        # Bonus
         if dist_fingers < 0.03:
             reward += 1.0
         if dist_fingers < 0.015:
             reward += 5.0
 
-        return reward, dist_fingers, dist_to_target
-
+        return reward, dist_fingers, dist_target
 
     # API Gymnasium
 
@@ -159,32 +124,6 @@ class AdroitHandReachEnv(gym.Env):
         return obs, info
     
 
-    
-    # def step(self, action):
-    #     # Clip des actions
-    #     action = np.clip(action, self.action_space.low, self.action_space.high)
-
-    #     # Mapping simple [-1,1] -> torque dans ctrl
-    #     self.data.ctrl[:] = action
-
-    #     # Avancer la simu
-    #     n_substeps = 5
-    #     for _ in range(n_substeps):
-    #         mujoco.mj_step(self.model, self.data)
-
-    #     obs = self._get_obs()
-    #     reward, dist = self._compute_reward()
-
-    #     # Terminaison si assez proche de la cible
-    #     terminated = dist < 0.01
-    #     truncated = False
-
-    #     info = {"distance": dist}
-
-    #     if self.render_mode == "human" and self.viewer is not None:
-    #         self.viewer.sync()
-
-    #     return obs, reward, terminated, truncated, info
     def step(self, action):
 
         action = np.clip(action, -1, 1)
@@ -214,26 +153,6 @@ class AdroitHandReachEnv(gym.Env):
         }
 
         return obs, reward, terminated, truncated, info
-    # def step(self, action):
-    #     action = np.clip(action, self.action_space.low, self.action_space.high)
-    #     self.data.ctrl[:] = action
-
-    #     n_substeps = 5
-    #     for _ in range(n_substeps):
-    #         mujoco.mj_step(self.model, self.data)
-
-    #     obs = self._get_obs()
-    #     reward, dist = self._compute_reward()
-    #     terminated = dist < 0.01
-    #     truncated = False
-    #     info = {"distance": dist}
-
-    #     # Synchroniser avec le temps réel
-    #     if self.render_mode == "human" and self.viewer is not None:
-    #         self.viewer.sync()
-    #         time.sleep(1 / 60)  # 60 FPS
-
-    #     return obs, reward, terminated, truncated, info
     
 
     def render(self):
