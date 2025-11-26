@@ -1,9 +1,26 @@
 from shadow_hand_reach_env import AdroitHandReachEnv
 from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv
+import mujoco
+import numpy as np
+import os
+from mujoco import viewer
+from videocallback import VideoCallback
+
 
 def train_ppo():
     # --- Entraînement SANS rendu ---
-    env_train = AdroitHandReachEnv(render_mode=None)
+    os.makedirs("logs", exist_ok=True)
+    env_train=DummyVecEnv([lambda: AdroitHandReachEnv(render_mode="rgb_array")])
+    #env_train = AdroitHandReachEnv(render_mode=None)
+
+    videocall=VideoCallback(
+        env=env_train,
+        log_freq=5,
+        save_dir="logs",
+        verbose=1,
+        frame_skip=5
+    )
 
     model = PPO(
         policy="MlpPolicy",
@@ -12,7 +29,8 @@ def train_ppo():
         tensorboard_log="./ppo_shadowhand/"
     )
 
-    model.learn(total_timesteps=200_000)
+
+    model.learn(total_timesteps=200000,callback=videocall)
 
     model.save("ppo_shadowhand")
     env_train.close()
@@ -38,9 +56,6 @@ def train_ppo():
 #                 obs, info = env_eval.reset()
 #     finally :
 #         env_eval.close()
-import mujoco
-import numpy as np
-from mujoco import viewer
 
 def visualize_trained_model():
     env = AdroitHandReachEnv(render_mode=None)
@@ -115,8 +130,8 @@ def visualize_trained_model():
 if __name__ == "__main__": 
     # env_train = AdroitHandReachEnv(render_mode=None) 
     # env_train.debug_actuators()
-    #train_ppo()      # lance l'entraînement
+    train_ppo()      # lance l'entraînement
     
     #evaluate_model() # décommente pour tester visuellement
-    visualize_trained_model()
+    #visualize_trained_model()
     #visualize_random_actions()
