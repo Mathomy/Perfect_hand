@@ -15,19 +15,11 @@ class AdroitHandReachEnv(gym.Env):
     - Reward = - distance entre le point moyen (pouce + doigt) et la cible.
     """
 
-    metadata = {"render_modes": ["human","rgb_array"], "render_fps": 60}
+    metadata = {"render_modes": ["human"], "render_fps": 60}
 
-    def __init__(self, render_mode=None,defaultsettings=True):
+    def __init__(self, render_mode=None):
         super().__init__()
         self.render_mode = render_mode
-
-        self.defaultpos= np.array([
-        0.00084, 0.00012, 1.5e-06, 0.0085, 0.0084, 0.0083, 1.5e-06,
-        0.0085, 0.0084, 0.0083, 1.5e-06, 0.0085, 0.0084, 0.0083, 0.0086,
-        1.5e-06, 0.0085, 0.0084, 0.0083, -1.5e-05, 0.0086, 6.2e-06,
-        0.00071, -0.0083, 0.1, -0.1, 0.015, 1, 3e-15, -7.6e-11, 2.2e-25
-        ], dtype=np.float32)
-        self.defaultsettings=defaultsettings
 
         # Charger le modèle Mujoco de l'Adroit Hand
         model_path = os.path.join(os.path.dirname(__file__), "Adroit", "adroit_hand.xml")
@@ -147,21 +139,8 @@ class AdroitHandReachEnv(gym.Env):
         mujoco.mj_resetData(self.model, self.data)
 
         # Pose neutre
-        #self.data.qpos[:] = 0.0
-        #self.data.qvel[:] = 0.0
-
-        if not hasattr(self, "defaultsettings") or not self.defaultsettings:
-            # Petits bruits aléatoires autour de la position neutre
-            self.data.qpos[:] = 0.05 * self.np_random.uniform(-1, 1, size=self.model.nq)
-            self.data.qvel[:] = 0.01 * self.np_random.uniform(-1, 1, size=self.model.nv)
-        else:
-            if self.defaultsettings:
-                if len(self.defaultpos) != self.model.nq:
-                    raise ValueError(f"default_start_pos length {len(self.defaultpos)} != model.nq {self.model.nq}")
-                else:
-                    self.data.qpos[:] = self.defaultpos
-                    self.data.qvel[:] = 0.0
-
+        self.data.qpos[:] = 0.0
+        self.data.qvel[:] = 0.0
 
         # Cible FIXE au-dessus de la paume
         self.target_pos = np.array([0.0, -0.10, 0.25], dtype=np.float32)
@@ -262,14 +241,6 @@ class AdroitHandReachEnv(gym.Env):
             self.renderer.update_scene(self.data)
             img = self.renderer.render()
             return img
-    
-    def get_frame(self):
-        # returns a numpy array (H, W, 3)
-        if self.renderer is None:
-            self.renderer = mujoco.Renderer(self.model)
-        self.renderer.update_scene(self.data)
-        return self.renderer.render()
-
 
     def close(self):
         # if self.viewer is not None:
