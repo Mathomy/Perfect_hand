@@ -1,5 +1,6 @@
 from shadow_hand_reach_env import AdroitHandReachEnv
 from stable_baselines3 import PPO
+import time
 
 def train_ppo():
     # --- Entraînement SANS rendu ---
@@ -55,6 +56,7 @@ def visualize_trained_model():
         try:
             while True:  # boucle infinie jusqu'à Ctrl+C
                 # Action du modèle
+                time.sleep(0.05)
                 action, _ = model.predict(obs, deterministic=True)
                 obs, reward, terminated, truncated, info = env.step(action)
 
