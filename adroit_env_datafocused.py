@@ -24,13 +24,12 @@ class AdroitTrajEnv(gym.Env):
         self.render_mode = render_mode
         self.max_step=600
         self.current_steps = 0
-
         # Default position extracted from mujoco- used for resets when defaultsettings=True
         self.defaultpos = np.array([
             0.00084, 0.00012, 1.5e-06, 0.0085, 0.0084, 0.0083, 1.5e-06,
             0.0085, 0.0084, 0.0083, 1.5e-06, 0.0085, 0.0084, 0.0083, 0.0086,
             1.5e-06, 0.0085, 0.0084, 0.0083, -1.5e-05, 0.0086, 6.2e-06,
-            0.00071, -0.0083, 0.1, -0.1, 0.015, 1, 3e-15, -7.6e-11, 2.2e-25
+            0.00071, -0.0083, 0.1, -0.1, 0.023, 1, 3e-15, -7.6e-11, 2.2e-25
         ], dtype=np.float32)
         self.defaultsettings = defaultsettings
        
@@ -112,19 +111,20 @@ class AdroitTrajEnv(gym.Env):
 
         # bonus thresholds (distance thresholds -> additive bonus)
         "bonus_thresh": [
-            (0.04, 2.0),
-            (0.025, 5.0),
-            (0.015, 10.0)
+            (0.04, 20.0),
+            (0.025, 40.0),
+            (0.023, 50.0)
         ],
 
         # extra bonuses when also close to target: (dist_thresh, target_thresh, bonus)
         "target_bonus": [
-            (0.025, 0.05, 15.0),
-            (0.015, 0.03, 25.0)
+            (0.025, 0.05, 30.0),
+            (0.023, 0.03, 60.0)
         ],
 
         # bonus for straight finger pinch (dist_thresh, straightness_ratio_thresh, bonus)
-        "straightness_bonus": (0.025, 0.85, 10.0)
+        "straightness_bonus": (0.025, 0.85, 10.0),
+        "terminal_reward": 600.0
     }
 
     def _get_obs(self):
@@ -133,94 +133,7 @@ class AdroitTrajEnv(gym.Env):
         return np.concatenate([qpos, self.target_pos])
     
 
-   
-    # def _compute_reward(self): # Biggest changes between both environments are here
-        
-    #     #Reward function optimized for PINCHING motion.
-        
-    #     #Goals:
-    #     #1. Bring thumb and index close together (pinch)
-    #     #2. Keep fingers straight during pinching to have a better trajectory
-    #     #3. Move the pinch point toward the target
-    #     #4. Maintain proper finger alignment
 
-    #     # Get finger tip positions
-    #     thumb_tip_pos = self.data.xpos[self.thumb_body_id].copy()
-    #     index_tip_pos = self.data.xpos[self.finger_body_id].copy()
-
-    #     # Distance between fingertips (pinch quality)
-    #     dist_fingers = np.linalg.norm(thumb_tip_pos - index_tip_pos)
-
-    #     # Midpoint between fingers
-    #     mid_pos = 0.5 * (thumb_tip_pos + index_tip_pos)
-        
-    #     # Distance from midpoint to target
-    #     dist_to_target = np.linalg.norm(mid_pos - self.target_pos)
-
-    #     # Finger Straightness Penalty Calculation
-    #     try:
-    #         # Get body segment IDs of fingers
-    #         ffknuckle_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "ffknuckle")
-    #         ffmiddle_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "ffmiddle")
-            
-    #         # Get positions
-    #         ff_knuckle = self.data.xpos[ffknuckle_id].copy()
-    #         ff_middle = self.data.xpos[ffmiddle_id].copy()
-    #         ff_tip = index_tip_pos
-            
-    #         # Measure straightness: compare actual distance to sum of segment lengths
-    #         # Straighter finger = actual distance closer to sum of segments
-    #         segment1 = np.linalg.norm(ff_middle - ff_knuckle)
-    #         segment2 = np.linalg.norm(ff_tip - ff_middle)
-    #         total_segments = segment1 + segment2
-            
-    #         direct_distance = np.linalg.norm(ff_tip - ff_knuckle)
-            
-    #         # Straightness ratio: 1.0 = perfectly straight, <1.0 = bent
-    #         straightness_ratio = direct_distance / (total_segments + 1e-6)
-            
-    #         # Penalty for bent fingers
-    #         straightness_penalty = -5.0 * (1.0 - straightness_ratio)
-            
-    #     except:
-    #         straightness_penalty = 0.0
-    #         straightness_ratio = 1.0
-
-    #     # === REWARD COMPONENTS ===
-        
-    #     # Encourage pinching (fingers close together)
-    #     pinch_reward = -20.0 * dist_fingers
-        
-    #     #Encourage straight fingers during pinch (to have a better trajectory)
-    #     straightness_reward = straightness_penalty
-        
-       
-    #     # Scale this by how close the fingers are
-    #     pinch_quality = np.exp(-10 * dist_fingers)  # 1.0 when touching, ~0 when far
-    #     target_reward = -5.0 * dist_to_target * pinch_quality
-        
-    #     # 4. Bonus rewards for achieving pinch
-    #     bonus = 0.0
-    #     if dist_fingers < 0.04:  # Starting to pinch
-    #         bonus += 2.0
-    #     if dist_fingers < 0.025:  # Good pinch
-    #         bonus += 5.0
-    #     if dist_fingers < 0.015:  # Excellent pinch
-    #         bonus += 10.0
-            
-    #     # 5. Extra bonus if pinching AT the target location
-    #     if dist_fingers < 0.025 and dist_to_target < 0.05:
-    #         bonus += 15.0
-    #     if dist_fingers < 0.015 and dist_to_target < 0.03:
-    #         bonus += 25.0
-            
-    #     # 6. Additional bonus for straight finger pinch
-    #     if dist_fingers < 0.025 and straightness_ratio > 0.85:
-    #         bonus += 10.0
-
-    #     total_reward = pinch_reward + straightness_reward + target_reward + bonus
-
-    #     return total_reward, dist_fingers, dist_to_target
     def _straightness_ratio(self, knuckle_body_name: str, middle_body_name: str, tip_pos: np.ndarray):
         """
     Compute straightness ratio for a finger described by knuckle -> middle -> tip.
@@ -256,20 +169,25 @@ class AdroitTrajEnv(gym.Env):
         bonus = 0.0
 
         # distance thresholds
-        for thresh, val in cfg["bonus_thresh"]:
-            if dist_fingers < thresh:
+        for i, (thresh, val) in enumerate(cfg["bonus_thresh"]):
+            if dist_fingers < thresh and not self.bonus_claimed["bonus_thresh"][i]:
                 bonus += val
+                self.bonus_claimed["bonus_thresh"][i] = True  # mark as claimed
 
         # extra target-based bonuses
-        for d_thresh, t_thresh, val in cfg["target_bonus"]:
-            if dist_fingers < d_thresh and dist_to_target < t_thresh:
+        for i, (d_thresh, t_thresh, val) in enumerate(cfg["target_bonus"]):
+            if dist_fingers < d_thresh and dist_to_target < t_thresh and not self.bonus_claimed["target_bonus"][i]:
                 bonus += val
+                self.bonus_claimed["target_bonus"][i] = True  # mark as claimed
 
-        # straightness bonus (index and thumb blended: require index straightness by default)
-        s_thresh, s_ratio_thresh, s_val = cfg["straightness_bonus"]
-        # give straightness bonus only if fingers are close
-        if dist_fingers < s_thresh and (straight_idx > s_ratio_thresh or straight_th > s_ratio_thresh):
-            bonus += s_val
+            # straightness bonus (index and thumb blended: require index straightness by default)
+            s_thresh, s_ratio_thresh, s_val = cfg["straightness_bonus"]
+            # give straightness bonus only if fingers are close
+            if dist_fingers < s_thresh and (straight_idx > s_ratio_thresh or straight_th > s_ratio_thresh):
+                bonus += s_val
+        terminated = dist_fingers < 0.023 and dist_to_target <  0.03
+        terminal_bonus = cfg.get("terminal_reward", 0.0) if terminated else 0.0
+        bonus+=terminal_bonus
 
         return bonus
 
@@ -358,7 +276,7 @@ class AdroitTrajEnv(gym.Env):
     #     # Bonus si les doigts sont très proches
     #     if dist_fingers < 0.03:
     #         reward += 1.0
-    #     if dist_fingers < 0.015:
+    #     if dist_fingers < 0.023:
     #         reward += 5.0
 
     #     return reward, dist_fingers, dist_to_target
@@ -391,6 +309,10 @@ class AdroitTrajEnv(gym.Env):
 
         obs = self._get_obs()
         info = {}
+        self.bonus_claimed = {
+        "bonus_thresh": [False] * len(self.reward_params["bonus_thresh"]),
+        "target_bonus": [False] * len(self.reward_params["target_bonus"]),
+    }
 
         return obs, info
 
@@ -411,7 +333,7 @@ class AdroitTrajEnv(gym.Env):
         reward, dist_fingers, dist_to_target= self._compute_reward()
         self.current_steps += 1
         # Success condition: excellent pinch
-        terminated = dist_fingers < 0.015
+        terminated = dist_fingers < 0.023 and dist_to_target <0.03
         truncated = self.current_steps >= self.max_step
 
         info = {
