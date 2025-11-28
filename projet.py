@@ -231,10 +231,128 @@ def visualize_trained_model():
 
 #     env.close()
 
+import pickle
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_metrics(metrics_file):
+    # --- Charger le dataset ---
+    with open(metrics_file, "rb") as f:
+        dataset = pickle.load(f)
+
+    # --- Extraire les métriques ---
+    episode_returns = dataset.get("episode_returns", [])
+    episode_lengths = dataset.get("episode_lengths", [])
+
+    # Rewards cumulés par épisode (recalculé à partir des rewards et terminals si dispo)
+    if all(key in dataset for key in ["rewards", "terminals"]):
+        rewards = dataset["rewards"]
+        terminals = dataset["terminals"]
+        ep_rewards = []
+        ep_reward = 0
+        for r, t in zip(rewards, terminals):
+            ep_reward += r
+            if t:  # fin d'épisode
+                ep_rewards.append(ep_reward)
+                ep_reward = 0
+    else:
+        ep_rewards = episode_returns  # fallback
+
+    n_episodes = len(episode_returns)
+    episodes = np.arange(1, n_episodes + 1)
+
+    # --- PLOT ---
+    plt.figure(figsize=(15, 10))
+
+    # 1) Episode Returns
+    plt.subplot(3, 1, 1)
+    plt.plot(episodes, episode_returns, label="Episode return")
+    plt.xlabel("Episode")
+    plt.ylabel("Return")
+    plt.title("Episode Returns")
+    plt.grid(True)
+
+    # 2) Episode Lengths
+    plt.subplot(3, 1, 2)
+    plt.plot(episodes, episode_lengths, label="Episode length", color="orange")
+    plt.xlabel("Episode")
+    plt.ylabel("Length")
+    plt.title("Episode Lengths")
+    plt.grid(True)
+
+    # 3) Rewards cumulés recalculés (optionnel)
+    plt.subplot(3, 1, 3)
+    plt.plot(episodes, ep_rewards, label="Cumulative rewards", color="green")
+    plt.xlabel("Episode")
+    plt.ylabel("Cumulative Reward")
+    plt.title("Episode Cumulative Rewards")
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+# --- Exemple d'utilisation ---
+
+import pickle
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_full_metrics(metrics_file):
+    with open(metrics_file, "rb") as f:
+        dataset = pickle.load(f)
+
+    episode_returns = dataset.get("episode_returns", [])
+    episode_lengths = dataset.get("episode_lengths", [])
+
+    # Reward moyen par étape par épisode
+    rewards_per_step = []
+    start = 0
+    for length in episode_lengths:
+        if length > 0:
+            ep_rewards = dataset["rewards"][start:start+length]
+            rewards_per_step.append(np.mean(ep_rewards))
+        else:
+            rewards_per_step.append(np.nan)
+        start += length
+
+    # Entropies et losses (par épisode)
+    mean_entropy_per_episode = [np.mean(ep) if len(ep) > 0 else np.nan for ep in dataset.get("entropies", [])]
+    mean_loss_per_episode = [np.mean(ep) if len(ep) > 0 else np.nan for ep in dataset.get("losses", [])]
+
+    n_episodes = len(episode_returns)
+    episodes = np.arange(1, n_episodes + 1)
+
+    plt.figure(figsize=(15, 12))
+
+    plt.subplot(4, 1, 1)
+    plt.plot(episodes, episode_returns, label="Episode Return")
+    plt.xlabel("Episode"); plt.ylabel("Return"); plt.title("Episode Return"); plt.grid(True)
+
+    plt.subplot(4, 1, 2)
+    plt.plot(episodes, episode_lengths, label="Episode Length", color="orange")
+    plt.xlabel("Episode"); plt.ylabel("Length"); plt.title("Episode Length"); plt.grid(True)
+
+    plt.subplot(4, 1, 3)
+    plt.plot(episodes, rewards_per_step, label="Average reward per step", color="green")
+    plt.xlabel("Episode"); plt.ylabel("Avg reward"); plt.title("Average Reward per Step"); plt.grid(True)
+
+    plt.subplot(4, 1, 4)
+    if mean_entropy_per_episode:
+        plt.plot(episodes, mean_entropy_per_episode, label="Entropy", color="purple")
+    if mean_loss_per_episode:
+        plt.plot(episodes, mean_loss_per_episode, label="Value Loss", color="red")
+    plt.xlabel("Episode"); plt.ylabel("Value"); plt.title("Entropy / Value Loss per Episode")
+    plt.legend(); plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__": 
     # env_train = AdroitHandReachEnv(render_mode=None) 
     # env_train.debug_actuators()
     # env_train.utilis()
     #train_ppo()      # lance l'entraînement
-    visualize_trained_model()
+    #visualize_trained_model()
+    plot_full_metrics("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/metrics_dataset.pkl")
     #visualize_random_actions()
