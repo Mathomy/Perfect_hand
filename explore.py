@@ -6,6 +6,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 import math
 import mujoco
 import mujoco.viewer
+import time
 
 # Importer l'environnement de départ
 from shadow_hand_reach_env import AdroitHandReachEnv
@@ -173,6 +174,7 @@ def visualize_policy(model_path="sac_explore_adroit.zip", n_steps=1000):
             for t in range(n_steps):
                 action, _ = model.predict(obs, deterministic=False)
                 obs, reward, terminated, truncated, info = env.step(action)
+                time.sleep(0.05)
                 # reward here is extrinsic (env default) — if you want to see intrinsic, wrap as above
                 viewer.sync()
         except KeyboardInterrupt:
@@ -182,6 +184,6 @@ def visualize_policy(model_path="sac_explore_adroit.zip", n_steps=1000):
 
 if __name__ == "__main__":
     # Exemple : entraînement court pour debug
-    model = train_exploration_sac(total_timesteps=500, k=5, buffer_size=20, seed=1)
+    model = train_exploration_sac(total_timesteps=5000, k=5, buffer_size=20, seed=1)
     # Visualiser quelques seconds
     visualize_policy(model_path="sac_explore_adroit.zip", n_steps=1000)
