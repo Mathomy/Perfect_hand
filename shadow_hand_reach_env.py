@@ -185,24 +185,24 @@ class AdroitHandReachEnv(gym.Env):
         for i in range(self.model.nu):
             print(i, self.model.actuator(i).name)
 
-        # ---------- Utilitaires pour exploration intrinsèque ----------
+    #     # ---------- Utilitaires pour exploration intrinsèque ----------
 
 
-    def compute_finger_distance(self) -> float:
-        """
-        Retourne la distance entre le pouce et l'index
-        (juste pour monitoring, pas utilisé par le reward intrinsèque).
-        """
-        thumb_pos = self.data.xpos[self.thumb_body_id]
-        index_pos = self.data.xpos[self.finger_body_id]
-        return float(np.linalg.norm(thumb_pos - index_pos))
+    # def compute_finger_distance(self) -> float:
+    #     """
+    #     Retourne la distance entre le pouce et l'index
+    #     (juste pour monitoring, pas utilisé par le reward intrinsèque).
+    #     """
+    #     thumb_pos = self.data.xpos[self.thumb_body_id]
+    #     index_pos = self.data.xpos[self.finger_body_id]
+    #     return float(np.linalg.norm(thumb_pos - index_pos))
     
-    def get_state_from_obs(self, obs: np.ndarray) -> np.ndarray:
-        """
-        Extrait un état compact s à partir de l'observation.
-        Ici : on prend qpos uniquement (on ignore la target).
-        """
-        nq = self.model.nq
-        return obs[:nq].copy()
+    # def get_state_from_obs(self, obs: np.ndarray) -> np.ndarray:
+    #     """
+    #     Extrait un état compact s à partir de l'observation.
+    #     Ici : on prend qpos uniquement (on ignore la target).
+    #     """
+    #     nq = self.model.nq
+    #     return obs[:nq].copy()
 
 
