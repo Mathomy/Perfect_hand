@@ -84,11 +84,32 @@ class AdroitHandReachEnv(gym.Env):
         self.renderer = None
         if self.render_mode == "rgb_array":
             self.renderer = mujoco.Renderer(self.model)
+        self.reward_params = {
+        # coefficients principaux
+        "pinch_coef": -20.0,            # multiplie dist_fingers
+        "target_coef": -5.0,            # multiplie dist_to_target * pinch_quality
+        "pinch_quality_scale": 10.0,    # used in exp(-scale * dist)
 
-        print("thumb_tip:", mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "S_thtip"))
-        print("index_tip:", mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "S_fftip"))
-        print(self.model.site_pos[self.thumb_tip_id])
-        print(self.model.site_pos[self.index_tip_id])
+        # straightness (penalty weight) - positive numbers: penalty = - weight * (1 - ratio)
+        "straight_weight_index": 5.0,
+        "straight_weight_thumb": 3.0,   # less or more than index depending on desired importance
+
+        # bonus thresholds (distance thresholds -> additive bonus)
+        "bonus_thresh": [
+            (0.04, 2.0),
+            (0.025, 5.0),
+            (0.015, 10.0)
+        ],
+
+        # extra bonuses when also close to target: (dist_thresh, target_thresh, bonus)
+        "target_bonus": [
+            (0.025, 0.05, 15.0),
+            (0.015, 0.03, 25.0)
+        ],
+
+        # bonus for straight finger pinch (dist_thresh, straightness_ratio_thresh, bonus)
+        "straightness_bonus": (0.025, 0.85, 10.0)
+    }
 
 
     # Helpers internes
@@ -96,139 +117,121 @@ class AdroitHandReachEnv(gym.Env):
     def _get_obs(self):
         qpos = self.data.qpos.ravel()
         return np.concatenate([qpos, self.target_pos])
+    def _straightness_ratio(self, knuckle_body_name: str, middle_body_name: str, tip_pos: np.ndarray):
+        """
+    Compute straightness ratio for a finger described by knuckle -> middle -> tip.
+    Returns ratio in [0,1] where 1.0 means perfectly straight.
+    Safe: returns 1.0 on any failure.
+        """
+        try:
+            kn_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, knuckle_body_name)
+            mid_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, middle_body_name)
 
-    # def _update_target(self):
-    # # Assure que np_random est défini
-    #     if not hasattr(self, "np_random"):
-    #         self.np_random = np.random.RandomState()
+            kn_pos = self.data.xpos[kn_id].copy()
+            mid_pos = self.data.xpos[mid_id].copy()
 
-    #     self.target_pos = np.array([
-    #         0.05 * self.np_random.uniform(-1, 1),
-    #         -0.10 + 0.05 * self.np_random.uniform(-1, 1),
-    #         0.25 + 0.05 * self.np_random.uniform(-1, 1),
-    #     ], dtype=np.float32)
+            seg1 = np.linalg.norm(mid_pos - kn_pos)
+            seg2 = np.linalg.norm(tip_pos - mid_pos)
+            total_seg = seg1 + seg2 + 1e-9
 
-    # def _compute_reward(self):
-    #     thumb_pos = self.data.xpos[self.thumb_body_id].copy()
-    #     index_pos = self.data.xpos[self.finger_body_id].copy()
+            direct = np.linalg.norm(tip_pos - kn_pos)
 
-    #     dist = np.linalg.norm(thumb_pos - index_pos)
+            ratio = float(direct / total_seg)
+            # clamp
+            ratio = max(0.0, min(1.0, ratio))
+            return ratio
+        except Exception:
+            return 1.0
 
-    #     reward = -dist
-    #     reward += 1.0 / (dist + 0.01)  # bonus dense
-    #     if dist < 0.015:
-    #         reward += 5.0  # succès
 
-    #     # Optionnel : target dynamique
-    #     self.target_pos = 0.5 * (thumb_pos + index_pos) + np.array([0,0,0.01])
+    def _compute_bonus(self, dist_fingers, dist_to_target, straight_idx, straight_th):
+        """
+        Aggregate bonuses in a modular way using reward_params.
+        """
+        cfg = self.reward_params
+        bonus = 0.0
 
-    #     return reward, dist
+        # distance thresholds
+        for thresh, val in cfg["bonus_thresh"]:
+            if dist_fingers < thresh:
+                bonus += val
+
+        # extra target-based bonuses
+        for d_thresh, t_thresh, val in cfg["target_bonus"]:
+            if dist_fingers < d_thresh and dist_to_target < t_thresh:
+                bonus += val
+
+        # straightness bonus (index and thumb blended: require index straightness by default)
+        s_thresh, s_ratio_thresh, s_val = cfg["straightness_bonus"]
+        # give straightness bonus only if fingers are close
+        if dist_fingers < s_thresh and (straight_idx > s_ratio_thresh or straight_th > s_ratio_thresh):
+            bonus += s_val
+
+        return bonus
+
+
     def _compute_reward(self):
         """
-    Reward pour pinch qui favorise :
-    - rapprocher les bouts des doigts (dist_fingers)
-    - rapprocher le midpoint vers la target (dist_to_target)
-    - garder les doigts relativement droits (straightness)
-    - mouvements doux (qvel penalty)
-    - bonus 'soft' continu (pas de seuils brusques)
-    """
+        Reward shaping for pinch with:
+        - pinch distance term
+        - target distance term (scaled by pinch_quality)
+        - straightness penalties for index and thumb
+        - structured bonuses
+        """
+        cfg = self.reward_params
 
-        # --- Positions des tips (essayer sites d'abord) ---
+        # --- tip positions (sites) ---
         try:
-            thumb_pos = self.data.site_xpos[self.thumb_tip_id].copy()
-            index_pos = self.data.site_xpos[self.index_tip_id].copy()
+            thumb_tip_pos = self.data.site_xpos[self.thumb_tip_id].copy()
+            index_tip_pos = self.data.site_xpos[self.index_tip_id].copy()
         except Exception:
-            # fallback : body centers
-            thumb_pos = self.data.xpos[self.thumb_body_id].copy()
-            index_pos = self.data.xpos[self.index_body_id].copy()
+            # safe fallback to body centers (shouldn't happen if sites exist)
+            thumb_tip_pos = self.data.xpos[self.thumb_body_id].copy()
+            index_tip_pos = self.data.xpos[self.finger_body_id].copy()
 
         # Distances
-        dist_fingers = np.linalg.norm(thumb_pos - index_pos)        # m
-        mid_pos = 0.5 * (thumb_pos + index_pos)
-        dist_to_target = np.linalg.norm(mid_pos - self.target_pos)  # m
+        dist_fingers = float(np.linalg.norm(thumb_tip_pos - index_tip_pos))
+        mid_pos = 0.5 * (thumb_tip_pos + index_tip_pos)
+        dist_to_target = float(np.linalg.norm(mid_pos - self.target_pos))
 
-        # --- Straightness pour l'index (ratio entre la distance directe et la somme des segments) ---
-        straightness_ratio = 1.0
-        try:
-            # cacher les ids pour éviter lookup à chaque step
-            if not hasattr(self, "_cached_ff_ids"):
-                self._cached_ff_ids = {
-                    "ffknuckle": mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "ffknuckle"),
-                    "ffmiddle": mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "ffmiddle"),
-                }
-            ff_knuckle = self.data.xpos[self._cached_ff_ids["ffknuckle"]].copy()
-            ff_middle  = self.data.xpos[self._cached_ff_ids["ffmiddle"]].copy()
-            ff_tip     = index_pos
+        # Pinch reward (distance-based)
+        pinch_reward = cfg["pinch_coef"] * dist_fingers
 
-            seg1 = np.linalg.norm(ff_middle - ff_knuckle)
-            seg2 = np.linalg.norm(ff_tip - ff_middle)
-            total_seg = seg1 + seg2 + 1e-9
-            direct = np.linalg.norm(ff_tip - ff_knuckle) + 1e-9
-            straightness_ratio = np.clip(direct / total_seg, 0.0, 1.0)  # 1 = straight
-        except Exception:
-            straightness_ratio = 1.0
+        # Pinch quality scaling (sharp when very close)
+        pinch_quality = float(np.exp(-cfg["pinch_quality_scale"] * dist_fingers))
 
-        # --- Thumb curvature (angle between proximal->middle and middle->distal) ---
-        thumb_straightness = 1.0
-        try:
-            if not hasattr(self, "_cached_th_ids"):
-                self._cached_th_ids = {
-                    "thproximal": mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "thproximal"),
-                    "thmiddle":   mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "thmiddle"),
-                    "thdistal":   mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "thdistal"),
-                }
-            th_p = self.data.xpos[self._cached_th_ids["thproximal"]].copy()
-            th_m = self.data.xpos[self._cached_th_ids["thmiddle"]].copy()
-            th_d = self.data.xpos[self._cached_th_ids["thdistal"]].copy()
+        # Target reward (encourage moving mid-point toward target, but only effective when fingers are close)
+        target_reward = cfg["target_coef"] * dist_to_target * pinch_quality
 
-            v1 = th_m - th_p
-            v2 = th_d - th_m
-            n1 = np.linalg.norm(v1) + 1e-9
-            n2 = np.linalg.norm(v2) + 1e-9
-            cosang = np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0)
-            angle = np.arccos(cosang)  # radians
+        # Straightness ratios for index and thumb
+        # Index uses ffknuckle -> ffmiddle -> fftip
+        straight_idx = self._straightness_ratio("ffknuckle", "ffmiddle", index_tip_pos)
+        # Thumb: use thproximal -> thmiddle -> thdistal as segments (adjust names if you prefer other bodies)
+        straight_th = self._straightness_ratio("thproximal", "thmiddle", thumb_tip_pos)
 
-            # thumb_straightness ∈ [0,1], 1 = straight-ish (angle near pi), 0 = very folded
-            # we map cos(angle) so that larger angle (~pi) → larger straightness
-            thumb_straightness = (1 + np.cos(angle - np.pi)) / 2.0
-            thumb_straightness = np.clip(thumb_straightness, 0.0, 1.0)
-        except Exception:
-            thumb_straightness = 1.0
+        # Straightness penalties (negative when fingers bent)
+        straightness_penalty_idx = - cfg["straight_weight_index"] * (1.0 - straight_idx)
+        straightness_penalty_th  = - cfg["straight_weight_thumb"] * (1.0 - straight_th)
 
-        # --- Smoothness / velocity penalty (joint velocities) ---
-        qvel = np.array(self.data.qvel).ravel()
-        qvel_norm = np.linalg.norm(qvel)
-        smoothness_penalty = qvel_norm**2  # squared joint-speed energy
+        # Aggregate straightness reward
+        straightness_reward = float(straightness_penalty_idx + straightness_penalty_th)
 
-        # --- Soft terms & coefficients (tweak these) ---
-        K_PINCH =  -12.0    # multiplier for distance between tips (negative)
-        K_TARGET = -6.0     # multiplier for mid->target term
-        K_STRAIGHT_IDX = -4.0   # idx straightness penalty
-        K_STRAIGHT_TH  = -4.0   # thumb straightness penalty
-        K_SMOOTH = -1e-3       # joint velocity penalty (small)
-        BONUS_SCALE = 35.0     # overall soft bonus scale
+        # Bonuses
+        bonus = float(self._compute_bonus(dist_fingers, dist_to_target, straight_idx, straight_th))
 
-        # Basic distance terms
-        pinch_term = K_PINCH * dist_fingers
-        target_term = K_TARGET * dist_to_target * np.exp(-8.0 * dist_fingers)  # only matters when fingers close
 
-        # Straightness penalties (continuous)
-        straight_idx_term = K_STRAIGHT_IDX * (1.0 - straightness_ratio)
-        straight_thumb_term = K_STRAIGHT_TH * (1.0 - thumb_straightness)
+        # Total reward
+        total_reward = float(
+            pinch_reward
+            + target_reward
+            + straightness_reward
+            + bonus
+        )
 
-        # Smoothness
-        smooth_term = K_SMOOTH * smoothness_penalty
+        # For debugging / info you can store last measures as attributes or return them via info in step()
+        # e.g. self.last_straight_idx = straight_idx
 
-        # Soft success bonus (continuous, product of soft indicators)
-        pinch_soft = np.exp(-12.0 * dist_fingers)          # near 1 when touching
-        target_soft = np.exp(-8.0 * dist_to_target)
-        posture_bonus = 0.5 * (straightness_ratio + thumb_straightness)  # ∈ [0,1]
-        soft_bonus = BONUS_SCALE * pinch_soft * target_soft * posture_bonus
-
-        # Total reward (sum of continuous parts)
-        total_reward = pinch_term + target_term + straight_idx_term + straight_thumb_term + smooth_term + soft_bonus
-
-        return float(total_reward), float(dist_fingers), float(dist_to_target)
+        return total_reward, dist_fingers, dist_to_target
 
 
     # def _compute_reward(self): # Biggest changes between both environments are here
