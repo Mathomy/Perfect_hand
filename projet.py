@@ -1,5 +1,7 @@
 from shadow_hand_reach_env import AdroitHandReachEnv
 from stable_baselines3 import PPO
+from adroit_env_datafocused import AdroitTrajEnv
+import time
 
 def train_ppo():
     # --- Entraînement SANS rendu ---
@@ -9,7 +11,8 @@ def train_ppo():
         policy="MlpPolicy",
         env=env_train,
         verbose=1,
-        tensorboard_log="./ppo_shadowhand/"
+        tensorboard_log="./ppo_shadowhand/",
+        device="cpu"
     )
 
     model.learn(total_timesteps=200_000)
@@ -46,7 +49,7 @@ def visualize_trained_model():
     env = AdroitHandReachEnv(render_mode=None)
 
     # Charge le modèle entraîné
-    model = PPO.load("ppo_shadowhand.zip", env=env)
+    model = PPO.load("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/ppo_shadowhand.zip", env=env)
 
     obs, info = env.reset()
 
@@ -55,6 +58,7 @@ def visualize_trained_model():
         try:
             while True:  # boucle infinie jusqu'à Ctrl+C
                 # Action du modèle
+                time.sleep(0.3)
                 action, _ = model.predict(obs, deterministic=True)
                 obs, reward, terminated, truncated, info = env.step(action)
 
@@ -63,7 +67,7 @@ def visualize_trained_model():
 
                 # Afficher la frame
                 v.sync()
-
+                print(terminated,truncated)
                 # Si épisode fini → on reset mais on ne ferme PAS la fenêtre
                 if terminated or truncated:
                     obs, info = env.reset()
@@ -115,8 +119,7 @@ def visualize_trained_model():
 if __name__ == "__main__": 
     # env_train = AdroitHandReachEnv(render_mode=None) 
     # env_train.debug_actuators()
+    # env_train.utilis()
     #train_ppo()      # lance l'entraînement
-    
-    #evaluate_model() # décommente pour tester visuellement
     visualize_trained_model()
     #visualize_random_actions()

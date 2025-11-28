@@ -43,7 +43,7 @@ class AdroitTrajEnv(gym.Env):
 
         # Actuators for index and thumb
         self.index_actuators = [2, 3, 4, 5]
-        self.thumb_actuators = [19, 20, 21, 22, 23]
+        self.thumb_actuators = [19,20, 21, 22, 23]
         self.used_actuators = self.index_actuators + self.thumb_actuators
 
         self.action_space = spaces.Box(
