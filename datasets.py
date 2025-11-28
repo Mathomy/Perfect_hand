@@ -137,8 +137,11 @@ def generer_paires_aleatoires(clips_dict, max_paires=100):
         paires.append((clip1, clip2))  # On stocke juste les IDs
     return paires
 
+
+    
 def annoter_et_mettre_score(clips_dict, paires, fps=30):
-    delay = int(1000 / fps)
+    delay = int(1000 / fps * 5)
+    preference_data = []
 
     for i, (clip1_id, clip2_id) in enumerate(paires):
         clip1_frames = clips_dict[clip1_id]['video_frames']
@@ -163,21 +166,34 @@ def annoter_et_mettre_score(clips_dict, paires, fps=30):
             pref = input(f"Paire {i+1}/{len(paires)} - tapez 1 ou 2 pour le clip préféré (s pour sauter): ")
 
         if pref == '1':
+            y=0  #sigma 0 preferred
             clips_dict[clip1_id]['traj_segment']['score_preference'] += 1
+
         elif pref == '2':
+            y=1 #sigma 1 preferred
             clips_dict[clip2_id]['traj_segment']['score_preference'] += 1
         # 's' => pas de score
+        else:
+            y = 0.5  # no preference
+
+        preference_data.append({ 
+            'sigma_0_id': clip1_id,
+            'sigma_0_traj': clips_dict[clip1_id]['traj_segment'],
+            'sigma_1_traj': clips_dict[clip2_id]['traj_segment'],
+            'sigma_1_id': clip2_id,
+            'preference': y
+        })
 
     cv2.destroyAllWindows()
-    return clips_dict
-
+    return clips_dict, preference_data
 
 
  #### TEST création du dataset
 
 # Définir les dossiers
-dossier_traj = "logs/trajectories"
-dossier_videos = "logs/videos"
+dossier_traj = "logs/successful_episodes"
+dossier_videos = "logs/successful_episodes"
+
 
 # 1. Charger les épisodes
 episodes = charger_episodes(dossier_traj, dossier_videos)
@@ -186,16 +202,30 @@ episodes = charger_episodes(dossier_traj, dossier_videos)
 clips_dict = generer_clips(episodes, fps=30, duree_clip=1.5)
 
 # 3. Générer autant de paires que nécessaire (ici par exemple 200)
-paires = generer_paires_aleatoires(clips_dict, max_paires=10)
+paires = generer_paires_aleatoires(clips_dict, max_paires=40)
 
 # 4. Annoter les paires et mettre à jour les scores
-clips_dict = annoter_et_mettre_score(clips_dict, paires, fps=30)
+clips_dict, preference_data = annoter_et_mettre_score(clips_dict, paires, fps=30)
 
 # 5. Sauvegarder le dataset final
 with open("logs/dataset/preference_dataset.pkl", "wb") as f:
     pickle.dump(clips_dict, f)
+   
+
+with open("logs/dataset/sigma_data.pkl", "wb") as f:
+    pickle.dump(preference_data, f)
 
 print("Dataset de préférence sauvegardé !")
+
+
+# Viewing the dataset
+
+with open("logs/dataset/sigma_data.pkl", "rb") as f:
+    data = pickle.load(f)
+
+for entry in data:
+    print(entry)
+
 
 
 
