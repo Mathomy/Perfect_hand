@@ -127,9 +127,6 @@ class AdroitHandReachEnv(gym.Env):
         obs = self._get_obs()
         info = {}
 
-        # # Lancer le viewer si besoin
-        # if self.render_mode == "human" and self.viewer is None:
-        #     self.viewer = mujoco.viewer.launch(self.model, self.data)
         return obs, info
     
 
