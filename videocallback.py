@@ -38,6 +38,7 @@ class LoggingVideoCallback(BaseCallback):
             'rewards': [],
             'next_observations': [],
             'terminals': [],
+            'episode_lengths': []
         }
 
         # Metrics par épisode
@@ -99,6 +100,7 @@ class LoggingVideoCallback(BaseCallback):
         obs = self.locals["new_obs"][env_idx].copy()
         action = self.locals["actions"][env_idx].copy()
         reward = self.locals["rewards"][env_idx]
+        info = self.locals["infos"][env_idx]
 
         prev_obs = (
             self.current_episode['next_observations'][-1]
@@ -111,6 +113,7 @@ class LoggingVideoCallback(BaseCallback):
         self.current_episode['rewards'].append(reward)
         self.current_episode['next_observations'].append(obs)
         self.current_episode['infos'].append(info)
+        
 
         # ============================================
         #            METRICS PAR STEP
@@ -165,17 +168,19 @@ class LoggingVideoCallback(BaseCallback):
                 self.episode_count % self.video_freq == 0
                 or (self.save_success_videos and is_success)
             )
+            
             if save_video and self.frames:
-                video_file = f"{self.save_dir}/videos/episode_{self.episode_count:04d}.mp4"
-                imageio.mimsave(video_file, self.frames, fps=30)
-                self.video_trajectory_map.append({
-                    'episode': self.episode_count,
-                    'video': video_file,
-                    'trajectory': traj_file,
-                    'return': ep_return,
-                    'length': ep_length,
-                    'success': is_success
-                })
+                if len(self.frames) < 10:
+                    video_file = f"{self.save_dir}/videos/episode_{self.episode_count:04d}.mp4"
+                    imageio.mimsave(video_file, self.frames, fps=1)
+                    self.video_trajectory_map.append({
+                        'episode': self.episode_count,
+                        'video': video_file,
+                        'trajectory': traj_file,
+                        'return': ep_return,
+                        'length': ep_length,
+                        'success': is_success
+                    })
 
             # RESET épisode
             self.frames = []

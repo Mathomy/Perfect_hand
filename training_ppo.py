@@ -1,4 +1,5 @@
 import os
+import time
 import pickle
 import numpy as np
 from stable_baselines3 import PPO
@@ -7,7 +8,7 @@ import mujoco
 
 # Import your modules
 from adroit_env_datafocused import AdroitTrajEnv
-from videocallback import VideoCallback
+from videocallback import LoggingVideoCallback
 
 
 def train_ppo():
@@ -17,13 +18,13 @@ def train_ppo():
     """
     os.makedirs("logs", exist_ok=True)
     
-    env_train = DummyVecEnv([lambda:AdroitTrajEnv(render_mode="rgb_array", defaultsettings=True)])
+    env_train = DummyVecEnv([lambda:AdroitTrajEnv(render_mode="rgb_array", defaultsettings=True,camera_name="side_view")])
 
     #callback for dataset collection
-    videocall = VideoCallback(
+    videocall = LoggingVideoCallback(
         env=env_train,
         save_dir="logs",
-        video_freq=30, 
+        video_freq=10, 
         verbose=1,
         frame_skip=3
     )
@@ -44,7 +45,7 @@ def train_ppo():
     )
 
     print("Starting training with neutral position start...")
-    model.learn(total_timesteps=100000, callback=videocall)
+    model.learn(total_timesteps=300000, callback=videocall)
 
     model.save("ppo_shadowhand")
     env_train.close()
@@ -56,52 +57,35 @@ def train_ppo():
 
 
 def visualize_trained_model():
-    """
-    Visualiser le modèle entraîné en train de pincer.
-    La fenêtre reste ouverte jusqu'à ce que l'utilisateur la ferme.
-    """
-    env = AdroitTrajEnv(render_mode=None, defaultsettings=True)
-    
-    # Charger le modèle entraîné
-    model = PPO.load("ppo_shadowhand.zip", env=env)
+    env_train = AdroitTrajEnv(render_mode="rgb_array", defaultsettings=True)
+    # Charge le modèle entraîné
+    model = PPO.load("ppo_shadowhand.zip", env=env_train)
 
-    obs, info = env.reset()
+    obs, info = env_train.reset()
 
-    
-    with mujoco.viewer.launch_passive(env.model, env.data) as v:
-        step_count = 0
-        episode_count = 0
-
+    # Ouvre le viewer passif (géré par nous)
+    with mujoco.viewer.launch_passive(env_train.model, env_train.data) as v:
         try:
-            while v.is_running():  # Tant que la fenêtre n'est pas fermée
-                # Obtenir l'action du modèle
+            while True:  # boucle infinie jusqu'à Ctrl+C
+                # Action du modèle
+                time.sleep(0.3)
                 action, _ = model.predict(obs, deterministic=True)
-                obs, reward, terminated, truncated, info = env.step(action)
+                obs, reward, terminated, truncated, info = env_train.step(action)
 
-                # Afficher les infos de debug tous les 10 pas
-                if step_count % 10 == 0:
-                    print(f"Step {step_count}: "
-                          f"Pinch dist: {info['dist_fingers']:.4f}, "
-                          f"Target dist: {info['dist_to_target']:.4f}, "
-                          f"Straightness: {info.get('straightness', 0.0):.3f}, "
-                          f"Reward: {reward:.2f}")
+                # Debug simple si tu veux voir ce qui se passe
+                # print("dist:", info.get("distance"), "reward:", reward)
 
-                # Synchroniser l'affichage
+                # Afficher la frame
                 v.sync()
-                step_count += 1
-
-                # Reset à la fin de l'épisode, garder la fenêtre ouverte
+                print(terminated,truncated)
+                # Si épisode fini → on reset mais on ne ferme PAS la fenêtre
                 if terminated or truncated:
-                    episode_count += 1
-                    print(f"\n=== Épisode {episode_count} terminé ===")
-                    print(f"Distance finale de pincement: {info['dist_fingers']:.4f}\n")
-                    obs, info = env.reset()
-                    step_count = 0
+                    obs, info = env_train.reset()
 
         except KeyboardInterrupt:
             print("Visualisation interrompue par l'utilisateur (Ctrl+C).")
-        finally:
-            env.close()
+
+    env_train.close()
 
 
 
