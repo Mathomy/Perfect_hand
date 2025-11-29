@@ -100,7 +100,8 @@ def generer_clips(episodes, fps=30, duree_clip=1.5):
         traj = ep['trajectoire']
         reader = imageio.get_reader(video_path)
         nb_frames = reader.count_frames()
-        frames_per_clip = int(fps * duree_clip)
+        #frames_per_clip = int(fps * duree_clip)
+        frames_per_clip = nb_frames  # Utiliser toute la vidéo comme un seul clip
 
         for start in range(0, nb_frames, frames_per_clip):
             end = min(start + frames_per_clip, nb_frames)
@@ -191,8 +192,8 @@ def annoter_et_mettre_score(clips_dict, paires, fps=30):
  #### TEST création du dataset
 
 # Définir les dossiers
-dossier_traj = "logs/successful_episodes"
-dossier_videos = "logs/successful_episodes"
+dossier_traj = "logs/dataset_analysis/trajectories_filtered"
+dossier_videos = "logs/dataset_analysis/videos_filtered"
 
 
 # 1. Charger les épisodes
@@ -202,7 +203,7 @@ episodes = charger_episodes(dossier_traj, dossier_videos)
 clips_dict = generer_clips(episodes, fps=30, duree_clip=1.5)
 
 # 3. Générer autant de paires que nécessaire (ici par exemple 200)
-paires = generer_paires_aleatoires(clips_dict, max_paires=40)
+paires = generer_paires_aleatoires(clips_dict, max_paires=200)
 
 # 4. Annoter les paires et mettre à jour les scores
 clips_dict, preference_data = annoter_et_mettre_score(clips_dict, paires, fps=30)

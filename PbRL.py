@@ -10,7 +10,7 @@ import gymnasium as gym
 import mujoco
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3 import PPO
-from adroit_env_datafocused import AdroitTrajEnv
+from adroit_env_datafocused_temp import AdroitTrajEnv
 
 
 
@@ -300,6 +300,6 @@ def evaluate_model():
 
 
 if __name__ == "__main__":
-    #train_with_pbrl()
+    train_with_pbrl()
     visualize_trained_model()
     evaluate_model()

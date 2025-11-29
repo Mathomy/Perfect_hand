@@ -40,6 +40,8 @@
 			<joint class="free"/>
 		</body>
 
+		<camera name="side_view" pos="0.7 -0.3 0.4" xyaxes="0 -1 0 0.2 0 1" mode="targetbody" target="palm"/>
+
 	</worldbody>
 
 	<equality>

@@ -19,11 +19,12 @@ class AdroitTrajEnv(gym.Env):
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
-    def __init__(self, render_mode=None, defaultsettings=True):
+    def __init__(self, render_mode=None, defaultsettings=True,camera_name=None):
         super().__init__()
         self.render_mode = render_mode
         self.max_step=600
         self.current_steps = 0
+        self.camera_name=camera_name
 
         # Default position extracted from mujoco- used for resets when defaultsettings=True
         self.defaultpos = np.array([
@@ -100,9 +101,13 @@ class AdroitTrajEnv(gym.Env):
         self.renderer = None
         if self.render_mode == "rgb_array":
             self.renderer = mujoco.Renderer(self.model)
+            if self.camera_name is not None:
+                self.camera_name="side_view"
+
+        
         self.reward_params = {
         # coefficients principaux
-        "pinch_coef": -20.0,            # multiplie dist_fingers
+        "pinch_coef": -10.0,            # multiplie dist_fingers
         "target_coef": -5.0,            # multiplie dist_to_target * pinch_quality
         "pinch_quality_scale": 10.0,    # used in exp(-scale * dist)
 
@@ -112,15 +117,14 @@ class AdroitTrajEnv(gym.Env):
 
         # bonus thresholds (distance thresholds -> additive bonus)
         "bonus_thresh": [
-            (0.04, 2.0),
-            (0.025, 5.0),
-            (0.015, 10.0)
+            (0.04, 3.0),
+            (0.025, 7.0),
+            (0.015, 30.0)
         ],
 
-        # extra bonuses when also close to target: (dist_thresh, target_thresh, bonus)
         "target_bonus": [
-            (0.025, 0.05, 15.0),
-            (0.015, 0.03, 25.0)
+            (0.025, 0.05, 20.0),
+            (0.015, 0.03, 50.0)
         ],
 
         # bonus for straight finger pinch (dist_thresh, straightness_ratio_thresh, bonus)
@@ -411,21 +415,26 @@ class AdroitTrajEnv(gym.Env):
         reward, dist_fingers, dist_to_target= self._compute_reward()
         self.current_steps += 1
         # Success condition: excellent pinch
-        terminated = dist_fingers < 0.015
-        truncated = self.current_steps >= self.max_step
+        terminated = dist_fingers < 0.015 and dist_to_target < 0.05
+        truncated = self.current_steps >= self.max_step 
 
         info = {
             "dist_fingers": dist_fingers,
             "dist_to_target": dist_to_target,
             "reward": reward,
+            "success": terminated,
         }
 
         return obs, reward, terminated, truncated, info
-
+    
     def render(self):
         """Render the environment."""
         if self.render_mode == "rgb_array" and self.renderer is not None:
-            self.renderer.update_scene(self.data)
+            if self.camera_name is not None:
+                self.renderer.update_scene(self.data,camera=self.camera_name)
+            else:
+                self.renderer.update_scene(self.data)
+
             img = self.renderer.render()
             return img
 
@@ -433,7 +442,16 @@ class AdroitTrajEnv(gym.Env):
         """Get current frame as numpy array (H, W, 3)."""
         if self.renderer is None:
             self.renderer = mujoco.Renderer(self.model)
-        self.renderer.update_scene(self.data)
+
+        if self.camera_name is not None:
+            try:
+                self.renderer.update_scene(self.data, camera=self.camera_name)
+            except Exception:
+                self.renderer.update_scene(self.data)
+                print(f"Camera '{self.camera_name}' not found. Using default camera.")
+        else:
+            self.renderer.update_scene(self.data)
+            
         return self.renderer.render()
 
     def close(self):
