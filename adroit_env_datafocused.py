@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 import os
 import numpy as np
 import gymnasium as gym
@@ -21,11 +19,12 @@ class AdroitTrajEnv(gym.Env):
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
-    def __init__(self, render_mode=None, defaultsettings=True):
+    def __init__(self, render_mode=None, defaultsettings=True, camera_name=None):
         super().__init__()
         self.render_mode = render_mode
         self.max_step=800
         self.current_steps = 0
+        self.camera_name = camera_name
         # Default position extracted from mujoco- used for resets when defaultsettings=True
         self.defaultpos = np.array([
             0.00084, 0.00012, 1.5e-06, 0.0085, 0.0084, 0.0083, 1.5e-06,
@@ -342,7 +341,11 @@ class AdroitTrajEnv(gym.Env):
     def render(self):
         """Render the environment."""
         if self.render_mode == "rgb_array" and self.renderer is not None:
-            self.renderer.update_scene(self.data)
+            if self.camera_name is not None:
+                self.renderer.update_scene(self.data,camera=self.camera_name)
+            else:
+                self.renderer.update_scene(self.data)
+
             img = self.renderer.render()
             return img
 
@@ -350,7 +353,16 @@ class AdroitTrajEnv(gym.Env):
         """Get current frame as numpy array (H, W, 3)."""
         if self.renderer is None:
             self.renderer = mujoco.Renderer(self.model)
-        self.renderer.update_scene(self.data)
+
+        if self.camera_name is not None:
+            try:
+                self.renderer.update_scene(self.data, camera=self.camera_name)
+            except Exception:
+                self.renderer.update_scene(self.data)
+                print(f"Camera '{self.camera_name}' not found. Using default camera.")
+        else:
+            self.renderer.update_scene(self.data)
+            
         return self.renderer.render()
 
     def close(self):
@@ -370,4 +382,3 @@ class AdroitTrajEnv(gym.Env):
         print("nu =", self.model.nu)
         for i in range(self.model.nu):
             print(i, self.model.actuator(i).name)
->>>>>>> origin/reward_with_tips

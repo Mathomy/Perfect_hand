@@ -11,8 +11,8 @@ class DatasetFilter:
     """
     def __init__(self, logs_dir="logs"):
         self.logs_dir = Path(logs_dir)
-        self.traj_dir = self.logs_dir / "successful_episodes/trajectories"
-        self.video_dir = self.logs_dir / "successful_episodes/videos"
+        self.traj_dir = self.logs_dir / "trajectories"
+        self.video_dir = self.logs_dir / "videos"
 
         os.makedirs(self.traj_dir, exist_ok=True)
         os.makedirs(self.video_dir, exist_ok=True)
@@ -252,7 +252,6 @@ class DatasetFilter:
         print(f"✓ Copied to {self.filtered_traj_dir} and {self.filtered_video_dir}")
 
 
-# Example usage
 if __name__ == "__main__":
     filter_tool = DatasetFilter(logs_dir="logs")
     
@@ -261,7 +260,7 @@ if __name__ == "__main__":
         min_reward=-400,              # Require decent performance
         max_final_dist_fingers=0.04,  # Fingers must be reasonably close
         max_final_dist_target=0.15,   # Target shouldn't be too far
-        top_k_percent=10,              # Keep top 10%
+        top_k_percent=25,              # Keep top 25%
         plot=True
     )
     

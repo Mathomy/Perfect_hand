@@ -24,7 +24,7 @@ def train_ppo():
     videocall = LoggingVideoCallback(
         env=env_train,
         save_dir="logs",
-        video_freq=30, 
+        video_freq=10, 
         verbose=1,
         frame_skip=3
     )

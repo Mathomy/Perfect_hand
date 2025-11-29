@@ -195,6 +195,9 @@ def annoter_et_mettre_score(clips_dict, paires, fps=30):
 dossier_traj = "logs/dataset_analysis/trajectories_filtered"
 dossier_videos = "logs/dataset_analysis/videos_filtered"
 
+#dossier_traj = "logs/successful_episodes/trajectories"
+#dossier_videos = "logs/successful_episodes/videos"
+
 
 # 1. Charger les épisodes
 episodes = charger_episodes(dossier_traj, dossier_videos)
