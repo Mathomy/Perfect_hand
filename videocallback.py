@@ -46,7 +46,8 @@ class LoggingVideoCallback(BaseCallback):
             'episode_lengths': [],
             'entropies': [],
             'value_losses': [],
-            'distances': [],
+            'distances_finger': [],
+            'distances_target': [],
             'terminated': [],
             'truncated': []
         }
@@ -77,98 +78,96 @@ class LoggingVideoCallback(BaseCallback):
     #                          STEP                           #
     # ------------------------------------------------------- #
     def _on_step(self) -> bool:
-
         env_idx = 0
         self.episode_step_count += 1
 
-        # VIDEO FRAME
+        info = self.locals["infos"][env_idx]
+        terminated_flag = info["terminated"]
+        truncated_flag = info["truncated"]
+        done = terminated_flag or truncated_flag
+
+        # ============================================
+        #              VIDEO FRAME
+        # ============================================
         if self.episode_step_count % self.frame_skip == 0:
             if hasattr(self.env.envs[env_idx], "get_frame"):
                 self.frames.append(self.env.envs[env_idx].get_frame())
 
-        # TRANSITION
+        # ============================================
+        #               TRANSITION
+        # ============================================
         obs = self.locals["new_obs"][env_idx].copy()
         action = self.locals["actions"][env_idx].copy()
         reward = self.locals["rewards"][env_idx]
-        info = self.locals["infos"][env_idx]
-        terminated = self.locals["dones"][env_idx]
-        truncated = info.get("TimeLimit.truncated", False)
 
         prev_obs = (
-            self.current_episode['observations'][-1]
-            if self.current_episode['observations']
+            self.current_episode['next_observations'][-1]
+            if self.current_episode['next_observations']
             else obs
         )
 
-        # Stockage transition épisode
         self.current_episode['observations'].append(prev_obs)
         self.current_episode['actions'].append(action)
         self.current_episode['rewards'].append(reward)
         self.current_episode['next_observations'].append(obs)
         self.current_episode['infos'].append(info)
 
-        # ------------------------------
-        #     METRICS PAR STEP
-        # ------------------------------
+        # ============================================
+        #            METRICS PAR STEP
+        # ============================================
 
-        # ENTROPIE PPO
+        # ENTROPY
         obs_tensor, _ = self.model.policy.obs_to_tensor(np.expand_dims(obs, axis=0))
         dist = self.model.policy.get_distribution(obs_tensor)
         self.metrics['entropies'].append(dist.entropy().mean().item())
 
-        # VALUE LOSS
-        if hasattr(self.model, "value_loss"):
-            self.metrics['value_losses'].append(float(self.model.value_loss))
 
-        # DISTANCE ENTRE DOIGTS (si fournie)
+        # DISTANCE (si fournie)
         if "dist_fingers" in info:
-            self.metrics['distances'].append(info["dist_fingers"])
+            self.metrics['distances_finger'].append(info["dist_fingers"])
+        if "dist_target" in info:
+            self.metrics['distances_target'].append(info["dist_target"])
 
-        # ------------------------------
-        #          FIN EPISODE
-        # ------------------------------
-        if terminated:
+        # ============================================
+        #              FIN D'ÉPISODE
+        # ============================================
+        if done:
             self.episode_count += 1
 
-            # marqueurs de terminaison
-            self.metrics["terminated"].append(bool(terminated))
-            self.metrics["truncated"].append(bool(truncated))
+            # STOCKAGE terminated vs truncated
+            self.metrics["terminated"].append(bool(terminated_flag))
+            self.metrics["truncated"].append(bool(truncated_flag))
 
-            # construction du vecteur terminal
+            # Terminals vector
             self.current_episode["terminals"] = (
                 [False] * (len(self.current_episode["actions"]) - 1) + [True]
             )
 
-            ep_return = sum(self.current_episode["rewards"])
-            ep_length = len(self.current_episode["rewards"])
-            is_success = info.get("success", False) or info.get("dist_fingers", 1.0) < 0.015
+            ep_return = sum(self.current_episode['rewards'])
+            ep_length = len(self.current_episode['rewards'])
+            is_success = info.get("dist_fingers", 1.0) < 0.085
 
-            # Ajouter métriques
+            # Episode metrics
             self.metrics['episode_returns'].append(ep_return)
             self.metrics['episode_lengths'].append(ep_length)
 
-            # Ajout au DATASET complet (transitions)
-            self.dataset['observations'].extend(self.current_episode['observations'])
-            self.dataset['actions'].extend(self.current_episode['actions'])
-            self.dataset['rewards'].extend(self.current_episode['rewards'])
-            self.dataset['next_observations'].extend(self.current_episode['next_observations'])
-            self.dataset['terminals'].extend(self.current_episode['terminals'])
+            # Ajout dataset
+            for key in ["observations", "actions", "rewards", "next_observations", "terminals"]:
+                self.dataset[key].extend(self.current_episode[key])
 
-            # Sauvegarde TRAJECTOIRE
+            # Sauvegarde trajectoire
             traj_file = f"{self.save_dir}/trajectories/episode_{self.episode_count:04d}.pkl"
             with open(traj_file, "wb") as f:
                 pickle.dump(self.current_episode, f)
 
-            # --- Vidéo ---
+            # Vidéo
             save_video = (
                 self.episode_count % self.video_freq == 0
                 or (self.save_success_videos and is_success)
             )
-
             if save_video and self.frames:
                 video_file = f"{self.save_dir}/videos/episode_{self.episode_count:04d}.mp4"
                 imageio.mimsave(video_file, self.frames, fps=30)
-
                 self.video_trajectory_map.append({
                     'episode': self.episode_count,
                     'video': video_file,
@@ -178,7 +177,7 @@ class LoggingVideoCallback(BaseCallback):
                     'success': is_success
                 })
 
-            # RESET
+            # RESET épisode
             self.frames = []
             self.current_episode = {
                 'observations': [],
@@ -201,17 +200,17 @@ class LoggingVideoCallback(BaseCallback):
         # Dataset transitions
         """Sauvegarder le dataset complet."""
         dataset_np = {k: np.array(v) for k, v in self.dataset.items()}
-        dataset_file = f"{self.save_dir}/dataset/dataset_episodes_{self.episode_count}.pkl"
+        dataset_file = f"{self.save_dir}/dataset/dataset_final.pkl"
         with open(dataset_file, "wb") as f:
             pickle.dump(dataset_np, f)
 
 
         # Metrics
-        with open(f"{self.save_dir}/metrics/metrics.pkl", "wb") as f:
+        with open(f"{self.save_dir}/metrics/metrics4.pkl", "wb") as f:
             pickle.dump(self.metrics, f)
 
         # Mapping video
-        with open(f"{self.save_dir}/video_trajectory_mapping.pkl", "wb") as f:
+        with open(f"{self.save_dir}/video_trajectory_mapping4.pkl", "wb") as f:
             pickle.dump(self.video_trajectory_map, f)
 
         print("\n=== TRAINING FINISHED ===")

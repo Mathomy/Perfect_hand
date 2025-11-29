@@ -84,33 +84,7 @@ class AdroitHandReachEnv(gym.Env):
         self.renderer = None
         if self.render_mode == "rgb_array":
             self.renderer = mujoco.Renderer(self.model)
-        self.reward_params = {
-        # coefficients principaux
-        "pinch_coef": -20.0,            # multiplie dist_fingers
-        "target_coef": -5.0,            # multiplie dist_to_target * pinch_quality
-        "pinch_quality_scale": 10.0,    # used in exp(-scale * dist)
-
-        # straightness (penalty weight) - positive numbers: penalty = - weight * (1 - ratio)
-        "straight_weight_index": 5.0,
-        "straight_weight_thumb": 3.0,   # less or more than index depending on desired importance
-
-        # bonus thresholds (distance thresholds -> additive bonus)
-        "bonus_thresh": [
-            (0.04, 2.0),
-            (0.025, 5.0),
-            (0.015, 10.0)
-        ],
-
-        # extra bonuses when also close to target: (dist_thresh, target_thresh, bonus)
-        "target_bonus": [
-            (0.025, 0.05, 15.0),
-            (0.015, 0.03, 25.0)
-        ],
-
-        # bonus for straight finger pinch (dist_thresh, straightness_ratio_thresh, bonus)
-        "straightness_bonus": (0.025, 0.85, 10.0)
-    }
-
+        
 
     # Helpers internes
 
@@ -433,6 +407,7 @@ class AdroitHandReachEnv(gym.Env):
 
         terminated = dist_fingers < 0.015
         truncated = self.current_steps >= self.max_step
+        print (terminated,truncated)
         # print("dist_fingers =", dist_fingers)
 
         return obs, reward, terminated, truncated, info

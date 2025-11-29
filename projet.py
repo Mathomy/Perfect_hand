@@ -20,7 +20,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
 
-def train_ppo(total_timesteps=200_000,
+def train_ppo(total_timesteps=300_000,
               save_dir="logs",
               tensorboard_log="./ppo_shadowhand/",
               video_freq=20,
@@ -62,7 +62,7 @@ def train_ppo(total_timesteps=200_000,
     model.learn(total_timesteps=total_timesteps, callback=callback)
 
     # --- SAVE MODEL ---
-    model_path = os.path.join(save_dir, "ppo_shadowhand_model_v5")
+    model_path = os.path.join(save_dir, "ppo_shadowhand_model_v7")
     model.save(model_path)
     print(f"✔ Model saved to: {model_path}")
 
@@ -136,7 +136,7 @@ from mujoco import viewer
 def visualize_trained_model():
     env_train = AdroitTrajEnv(render_mode="rgb_array", defaultsettings=True)
     # Charge le modèle entraîné
-    model = PPO.load("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/ppo_shadowhand_model_new_reward.zip", env=env_train)
+    model = PPO.load("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/ppo_shadowhand_model_v7.zip", env=env_train)
 
     obs, info = env_train.reset()
 
@@ -145,7 +145,7 @@ def visualize_trained_model():
         try:
             while True:  # boucle infinie jusqu'à Ctrl+C
                 # Action du modèle
-                time.sleep(0.3)
+                time.sleep(0.08)
                 action, _ = model.predict(obs, deterministic=True)
                 obs, reward, terminated, truncated, info = env_train.step(action)
 
@@ -284,6 +284,8 @@ def plot_and_save_metrics(dataset, metrics, save_dir="plots"):
     ax2.plot(episodes, episode_lengths, label="Episode Length", color="orange")
     ax2.plot(episodes, terminated, label="Terminated", color="red", linestyle="--")
     ax2.plot(episodes, truncated, label="Truncated", color="black", linestyle="--")
+    print(terminated)
+    print(truncated)
     ax2.set_xlabel("Episode"); ax2.set_ylabel("Value"); ax2.set_title("Episode Length & Termination")
     ax2.legend(); ax2.grid(True)
     fig2.savefig(os.path.join(save_dir, "length_termination.png"))
@@ -316,6 +318,17 @@ def plot_and_save_metrics(dataset, metrics, save_dir="plots"):
     ax5.legend(); ax5.grid(True)
     fig5.savefig(os.path.join(save_dir, "finger_distance.png"))
     plots.append(fig5)
+    
+    fig6, ax6 = plt.subplots(figsize=(10,5))
+    rewards = dataset["rewards"]
+    plt.plot(np.arange(len(rewards)), rewards)
+    plt.xlabel("Step")
+    plt.ylabel("Reward")
+    plt.title("Reward per Step")
+    ax6.set_xlabel("Episode"); ax6.set_ylabel("Distance"); ax6.set_title("Finger Distance per Episode")
+    ax6.legend(); ax6.grid(True)
+    fig6.savefig(os.path.join(save_dir, "reward per episode.png"))
+    plots.append(fig6)
 
     print(f"✔ Plots saved in {save_dir}")
     return plots
@@ -403,6 +416,7 @@ def plot_full_metrics(dataset, metrics):
    
     terminated = np.array(metrics.get("terminated", [0]*n_episodes), dtype=int)
     truncated = np.array(metrics.get("truncated", [0]*n_episodes), dtype=int)
+
     plt.plot(episodes, terminated, label="Terminated", color="red", linestyle="--")
     plt.plot(episodes, truncated, label="Truncated", color="black", linestyle="--")
     plt.xlabel("Episode"); plt.ylabel("Termination"); plt.title( "Episode Termination")
@@ -415,13 +429,12 @@ def plot_full_metrics(dataset, metrics):
     plt.tight_layout()
     plt.show()
 if __name__ == "__main__": 
-    # env_train = AdroitHandReachEnv(render_mode=None) 
-    # env_train.debug_actuators()
-    # env_train.utilis()
-    #train_ppo()      # lance l'entraînement
+    train_ppo()      # lance l'entraînement
     #visualize_trained_model()
-    with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/metrics/metrics.pkl", "rb") as f:
-        metrics = pickle.load(f)
-    with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/dataset/dataset_episodes_4258.pkl", "rb") as f:
-        dataset = pickle.load(f)
-    plot_and_save_metrics(dataset,metrics)
+    # with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/metrics/metrics3.pkl", "rb") as f:
+    #     metrics = pickle.load(f)
+    # with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/dataset/dataset_episodessss_97.pkl", "rb") as f:
+    #     dataset = pickle.load(f)
+    # plot_and_save_metrics(dataset,metrics)
+    # plot_full_metrics(metrics=metrics,dataset=dataset)
+    
