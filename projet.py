@@ -145,7 +145,7 @@ def visualize_trained_model():
         try:
             while True:  # boucle infinie jusqu'à Ctrl+C
                 # Action du modèle
-                time.sleep(0.08)
+                time.sleep(0.2)
                 action, _ = model.predict(obs, deterministic=True)
                 obs, reward, terminated, truncated, info = env_train.step(action)
 
@@ -157,6 +157,7 @@ def visualize_trained_model():
                 print(terminated,truncated)
                 # Si épisode fini → on reset mais on ne ferme PAS la fenêtre
                 if terminated or truncated:
+                    time.sleep(5)
                     obs, info = env_train.reset()
 
         except KeyboardInterrupt:
@@ -430,11 +431,11 @@ def plot_full_metrics(dataset, metrics):
     plt.show()
 if __name__ == "__main__": 
     #train_ppo()      # lance l'entraînement
-    # visualize_trained_model()
-    with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/metrics/metrics4.pkl", "rb") as f:
-        metrics = pickle.load(f)
-    with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/dataset/dataset_final.pkl", "rb") as f:
-        dataset = pickle.load(f)
-    plot_and_save_metrics(dataset,metrics)
-    plot_full_metrics(metrics=metrics,dataset=dataset)
+    visualize_trained_model()
+    # with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/metrics/metrics4.pkl", "rb") as f:
+    #     metrics = pickle.load(f)
+    # with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/dataset/dataset_final.pkl", "rb") as f:
+    #     dataset = pickle.load(f)
+    # plot_and_save_metrics(dataset,metrics)
+    # plot_full_metrics(metrics=metrics,dataset=dataset)
     
