@@ -125,8 +125,8 @@ class LoggingVideoCallback(BaseCallback):
         # DISTANCE (si fournie)
         if "dist_fingers" in info:
             self.metrics['distances_finger'].append(info["dist_fingers"])
-        if "dist_target" in info:
-            self.metrics['distances_target'].append(info["dist_target"])
+        if "dist_to_target" in info:
+            self.metrics['distances_target'].append(info["dist_to_target"])
 
         # ============================================
         #              FIN D'ÉPISODE
@@ -200,17 +200,17 @@ class LoggingVideoCallback(BaseCallback):
         # Dataset transitions
         """Sauvegarder le dataset complet."""
         dataset_np = {k: np.array(v) for k, v in self.dataset.items()}
-        dataset_file = f"{self.save_dir}/dataset/dataset_final.pkl"
+        dataset_file = f"{self.save_dir}/dataset/dataset_final2.pkl"
         with open(dataset_file, "wb") as f:
             pickle.dump(dataset_np, f)
 
 
         # Metrics
-        with open(f"{self.save_dir}/metrics/metrics4.pkl", "wb") as f:
+        with open(f"{self.save_dir}/metrics/metrics5.pkl", "wb") as f:
             pickle.dump(self.metrics, f)
 
         # Mapping video
-        with open(f"{self.save_dir}/video_trajectory_mapping4.pkl", "wb") as f:
+        with open(f"{self.save_dir}/video_trajectory_mapping5.pkl", "wb") as f:
             pickle.dump(self.video_trajectory_map, f)
 
         print("\n=== TRAINING FINISHED ===")
