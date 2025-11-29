@@ -106,24 +106,24 @@ class AdroitTrajEnv(gym.Env):
         "pinch_quality_scale": 10.0,    # used in exp(-scale * dist)
 
         # straightness (penalty weight) - positive numbers: penalty = - weight * (1 - ratio)
-        "straight_weight_index": 5.0,
-        "straight_weight_thumb": 3.0,   # less or more than index depending on desired importance
+        "straight_weight_index": 3.0,
+        "straight_weight_thumb": 7.0,   # less or more than index depending on desired importance
 
         # bonus thresholds (distance thresholds -> additive bonus)
         "bonus_thresh": [
-            (0.075, 10.0),
-            (0.050, 20.0),
-            (0.035, 30.0)
+            (0.040, 10.0),
+            (0.025, 20.0),
+            (0.018, 30.0)
         ],
 
         # extra bonuses when also close to target: (dist_thresh, target_thresh, bonus)
         "target_bonus": [
-            (0.050, 0.30, 15.0),
-            (0.035, 0.20, 30.0)
+            (0.025, 0.23, 15.0),
+            (0.018, 0.18, 30.0)
         ],
 
         # bonus for straight finger pinch (dist_thresh, straightness_ratio_thresh, bonus)
-        "straightness_bonus": (0.035, 0.85, 30.0),
+        "straightness_bonus": (0.018, 0.85, 10.0),
         "terminal_reward": 100.0
     }
         self.bonus_claimed = {
@@ -194,7 +194,7 @@ class AdroitTrajEnv(gym.Env):
             if dist_fingers < s_thresh and (straight_idx > s_ratio_thresh and straight_th > s_ratio_thresh):
                 bonus += s_val
                 # print(f"bonus straightness  : {val},")
-        terminated = dist_fingers < 0.045 and dist_to_target <  0.135
+        terminated = dist_fingers < 0.015 and dist_to_target <  0.146
         terminal_bonus = cfg.get("terminal_reward", 0.0) if terminated else 0.0
         bonus+=terminal_bonus
         # if bonus >0 :
@@ -260,6 +260,10 @@ class AdroitTrajEnv(gym.Env):
             + straightness_reward
             + bonus
         )
+        # print (pinch_reward,
+        #      target_reward,
+        #      straightness_reward,
+        #      bonus)
 
         # For debugging / info you can store last measures as attributes or return them via info in step()
         # e.g. self.last_straight_idx = straight_idx
@@ -318,7 +322,7 @@ class AdroitTrajEnv(gym.Env):
         reward, dist_fingers, dist_to_target= self._compute_reward()
         self.current_steps += 1
         # Success condition: excellent pinch
-        terminated = dist_fingers < 0.085 and dist_to_target <0.20
+        terminated = dist_fingers < 0.015 and dist_to_target <0.146
         truncated = self.current_steps >= self.max_step
 
         info = {

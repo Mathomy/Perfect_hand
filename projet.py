@@ -20,7 +20,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
 
-def train_ppo(total_timesteps=300_000,
+def train_ppo(total_timesteps=200_000,
               save_dir="logs",
               tensorboard_log="./ppo_shadowhand/",
               video_freq=20,
@@ -62,7 +62,7 @@ def train_ppo(total_timesteps=300_000,
     model.learn(total_timesteps=total_timesteps, callback=callback)
 
     # --- SAVE MODEL ---
-    model_path = os.path.join(save_dir, "ppo_shadowhand_model_v7")
+    model_path = os.path.join(save_dir, "ppo_shadowhand_model_v8")
     model.save(model_path)
     print(f"✔ Model saved to: {model_path}")
 
@@ -136,7 +136,7 @@ from mujoco import viewer
 def visualize_trained_model():
     env_train = AdroitTrajEnv(render_mode="rgb_array", defaultsettings=True)
     # Charge le modèle entraîné
-    model = PPO.load("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/ppo_shadowhand_model_v7.zip", env=env_train)
+    model = PPO.load("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/ppo_shadowhand_model_v8.zip", env=env_train)
 
     obs, info = env_train.reset()
 
@@ -265,7 +265,7 @@ def plot_and_save_metrics(dataset, metrics, save_dir="plots"):
 
     mean_entropy_per_episode = aggregate_per_episode(metrics.get("entropies", []))
     mean_loss_per_episode = aggregate_per_episode(metrics.get("value_losses", []))
-    mean_distance_per_episode = aggregate_per_episode(metrics.get("distances", []))
+    mean_distance_per_episode = aggregate_per_episode(metrics.get("distances_finger", []))
     terminated = np.array(metrics.get("terminated", [0]*n_episodes), dtype=int)
     truncated = np.array(metrics.get("truncated", [0]*n_episodes), dtype=int)
 
@@ -380,7 +380,7 @@ def plot_full_metrics(dataset, metrics):
 
     mean_entropy_per_episode = aggregate_per_episode(metrics.get("entropies", []))
     mean_loss_per_episode = aggregate_per_episode(metrics.get("value_losses", []))
-    mean_distance_per_episode = aggregate_per_episode(metrics.get("distances", []))
+    mean_distance_per_episode = aggregate_per_episode(metrics.get("distances_fingers", []))
 
     # --------------------------
     # Tracé des graphiques
@@ -429,12 +429,12 @@ def plot_full_metrics(dataset, metrics):
     plt.tight_layout()
     plt.show()
 if __name__ == "__main__": 
-    train_ppo()      # lance l'entraînement
-    #visualize_trained_model()
-    # with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/metrics/metrics3.pkl", "rb") as f:
-    #     metrics = pickle.load(f)
-    # with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/dataset/dataset_episodessss_97.pkl", "rb") as f:
-    #     dataset = pickle.load(f)
-    # plot_and_save_metrics(dataset,metrics)
-    # plot_full_metrics(metrics=metrics,dataset=dataset)
+    #train_ppo()      # lance l'entraînement
+    # visualize_trained_model()
+    with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/metrics/metrics4.pkl", "rb") as f:
+        metrics = pickle.load(f)
+    with open("C:/Users/tlamy/Sorbonne/Social robotic/Perfect_hand/logs/dataset/dataset_final.pkl", "rb") as f:
+        dataset = pickle.load(f)
+    plot_and_save_metrics(dataset,metrics)
+    plot_full_metrics(metrics=metrics,dataset=dataset)
     
