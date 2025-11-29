@@ -98,26 +98,26 @@ class AdroitHandReachEnv(gym.Env):
         thumb_pos = self.data.xpos[self.thumb_body_id].copy()
         index_pos = self.data.xpos[self.finger_body_id].copy()
 
-    #     # Distance entre le pouce et l'index
-    #     dist_fingers = np.linalg.norm(thumb_pos - index_pos)
+        # Distance entre le pouce et l'index
+        dist_fingers = np.linalg.norm(thumb_pos - index_pos)
 
-    #     # Distance du milieu des deux doigts à la target
-    #     mid_pos = 0.5 * (thumb_pos + index_pos)
-    #     dist_to_target = np.linalg.norm(mid_pos - self.target_pos)
+        # Distance du milieu des deux doigts à la target
+        mid_pos = 0.5 * (thumb_pos + index_pos)
+        dist_to_target = np.linalg.norm(mid_pos - self.target_pos)
 
-    #     # Reward :
-    #     # - on veut rapprocher les doigts entre eux ET de la cible
-    #     reward = 0.0
-    #     reward += -10.0 * dist_fingers     # rapprocher pouce/index
-    #     reward += -10.0 * dist_to_target   # rapprocher du point cible
+        # Reward :
+        # - on veut rapprocher les doigts entre eux ET de la cible
+        reward = 0.0
+        reward += -10.0 * dist_fingers     # rapprocher pouce/index
+        reward += -10.0 * dist_to_target   # rapprocher du point cible
 
-    #     # Bonus si les doigts sont très proches
-    #     if dist_fingers < 0.03:
-    #         reward += 1.0
-    #     if dist_fingers < 0.015:
-    #         reward += 5.0
+        # Bonus si les doigts sont très proches
+        if dist_fingers < 0.03:
+            reward += 1.0
+        if dist_fingers < 0.015:
+            reward += 5.0
 
-    #     return reward, dist_fingers, dist_to_target
+        return reward, dist_fingers, dist_to_target
 
 
     # API Gymnasium
