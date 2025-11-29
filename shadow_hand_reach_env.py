@@ -20,6 +20,8 @@ class AdroitHandReachEnv(gym.Env):
     def __init__(self, render_mode=None):
         super().__init__()
         self.render_mode = render_mode
+        self.max_step=600
+        self.current_steps = 0
 
         # Charger le modèle Mujoco de l'Adroit Hand
         model_path = os.path.join(os.path.dirname(__file__), "Adroit", "adroit_hand.xml")
@@ -51,13 +53,26 @@ class AdroitHandReachEnv(gym.Env):
         self.finger_body_name = "ffdistal"  # placeholder
 
         try:
+            self.thumb_tip_id = mujoco.mj_name2id(
+        self.model, mujoco.mjtObj.mjOBJ_SITE, "S_thtip"
+    )
+            self.index_tip_id = mujoco.mj_name2id(
+        self.model, mujoco.mjtObj.mjOBJ_SITE, "S_fftip")
             self.thumb_body_id = mujoco.mj_name2id(
                 self.model, mujoco.mjtObj.mjOBJ_BODY, self.thumb_body_name
             )
             self.finger_body_id = mujoco.mj_name2id(
                 self.model, mujoco.mjtObj.mjOBJ_BODY, self.finger_body_name
             )
+      
+            
         except Exception as e:
+            self.thumb_body_id = mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_BODY, self.thumb_body_name
+            )
+            self.finger_body_id = mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_BODY, self.finger_body_name
+            )
             print("Problème avec les noms de bodies (thumb/finger). ")
             raise e
 
@@ -69,6 +84,7 @@ class AdroitHandReachEnv(gym.Env):
         self.renderer = None
         if self.render_mode == "rgb_array":
             self.renderer = mujoco.Renderer(self.model)
+        
 
     # Helpers internes
 
@@ -82,26 +98,26 @@ class AdroitHandReachEnv(gym.Env):
         thumb_pos = self.data.xpos[self.thumb_body_id].copy()
         index_pos = self.data.xpos[self.finger_body_id].copy()
 
-        # Distance entre le pouce et l'index
-        dist_fingers = np.linalg.norm(thumb_pos - index_pos)
+    #     # Distance entre le pouce et l'index
+    #     dist_fingers = np.linalg.norm(thumb_pos - index_pos)
 
-        # Distance du milieu des deux doigts à la target
-        mid_pos = 0.5 * (thumb_pos + index_pos)
-        dist_to_target = np.linalg.norm(mid_pos - self.target_pos)
+    #     # Distance du milieu des deux doigts à la target
+    #     mid_pos = 0.5 * (thumb_pos + index_pos)
+    #     dist_to_target = np.linalg.norm(mid_pos - self.target_pos)
 
-        # Reward :
-        # - on veut rapprocher les doigts entre eux ET de la cible
-        reward = 0.0
-        reward += -10.0 * dist_fingers     # rapprocher pouce/index
-        reward += -10.0 * dist_to_target   # rapprocher du point cible
+    #     # Reward :
+    #     # - on veut rapprocher les doigts entre eux ET de la cible
+    #     reward = 0.0
+    #     reward += -10.0 * dist_fingers     # rapprocher pouce/index
+    #     reward += -10.0 * dist_to_target   # rapprocher du point cible
 
-        # Bonus si les doigts sont très proches
-        if dist_fingers < 0.03:
-            reward += 1.0
-        if dist_fingers < 0.015:
-            reward += 5.0
+    #     # Bonus si les doigts sont très proches
+    #     if dist_fingers < 0.03:
+    #         reward += 1.0
+    #     if dist_fingers < 0.015:
+    #         reward += 5.0
 
-        return reward, dist_fingers, dist_to_target
+    #     return reward, dist_fingers, dist_to_target
 
 
     # API Gymnasium
@@ -148,8 +164,6 @@ class AdroitHandReachEnv(gym.Env):
         obs = self._get_obs()
         # reward, dist = self._compute_reward()
         reward, dist_fingers, dist_to_target = self._compute_reward()
-        terminated = dist_fingers < 0.015
-        truncated = False
 
         #info = {"distance": dist, "reward": reward}
         info = {
@@ -157,6 +171,13 @@ class AdroitHandReachEnv(gym.Env):
         "dist_to_target": dist_to_target,
         "reward": reward,
         }
+
+        self.current_steps += 1
+
+        terminated = dist_fingers < 0.015
+        truncated = self.current_steps >= self.max_step
+        print (terminated,truncated)
+        # print("dist_fingers =", dist_fingers)
 
         return obs, reward, terminated, truncated, info
 
