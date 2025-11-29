@@ -76,32 +76,6 @@ class AdroitHandReachEnv(gym.Env):
         qpos = self.data.qpos.ravel()
         return np.concatenate([qpos, self.target_pos])
 
-    # def _update_target(self):
-    # # Assure que np_random est défini
-    #     if not hasattr(self, "np_random"):
-    #         self.np_random = np.random.RandomState()
-
-    #     self.target_pos = np.array([
-    #         0.05 * self.np_random.uniform(-1, 1),
-    #         -0.10 + 0.05 * self.np_random.uniform(-1, 1),
-    #         0.25 + 0.05 * self.np_random.uniform(-1, 1),
-    #     ], dtype=np.float32)
-
-    # def _compute_reward(self):
-    #     thumb_pos = self.data.xpos[self.thumb_body_id].copy()
-    #     index_pos = self.data.xpos[self.finger_body_id].copy()
-
-    #     dist = np.linalg.norm(thumb_pos - index_pos)
-
-    #     reward = -dist
-    #     reward += 1.0 / (dist + 0.01)  # bonus dense
-    #     if dist < 0.015:
-    #         reward += 5.0  # succès
-
-    #     # Optionnel : target dynamique
-    #     self.target_pos = 0.5 * (thumb_pos + index_pos) + np.array([0,0,0.01])
-
-    #     return reward, dist
 
     def _compute_reward(self):
         # Positions du pouce et de l'index dans le monde
@@ -159,32 +133,6 @@ class AdroitHandReachEnv(gym.Env):
         return obs, info
     
 
-    
-    # def step(self, action):
-    #     # Clip des actions
-    #     action = np.clip(action, self.action_space.low, self.action_space.high)
-
-    #     # Mapping simple [-1,1] -> torque dans ctrl
-    #     self.data.ctrl[:] = action
-
-    #     # Avancer la simu
-    #     n_substeps = 5
-    #     for _ in range(n_substeps):
-    #         mujoco.mj_step(self.model, self.data)
-
-    #     obs = self._get_obs()
-    #     reward, dist = self._compute_reward()
-
-    #     # Terminaison si assez proche de la cible
-    #     terminated = dist < 0.01
-    #     truncated = False
-
-    #     info = {"distance": dist}
-
-    #     if self.render_mode == "human" and self.viewer is not None:
-    #         self.viewer.sync()
-
-    #     return obs, reward, terminated, truncated, info
     def step(self, action):
 
         action = np.clip(action, -1, 1)
@@ -214,27 +162,6 @@ class AdroitHandReachEnv(gym.Env):
         }
 
         return obs, reward, terminated, truncated, info
-    # def step(self, action):
-    #     action = np.clip(action, self.action_space.low, self.action_space.high)
-    #     self.data.ctrl[:] = action
-
-    #     n_substeps = 5
-    #     for _ in range(n_substeps):
-    #         mujoco.mj_step(self.model, self.data)
-
-    #     obs = self._get_obs()
-    #     reward, dist = self._compute_reward()
-    #     terminated = dist < 0.01
-    #     truncated = False
-    #     info = {"distance": dist}
-
-    #     # Synchroniser avec le temps réel
-    #     if self.render_mode == "human" and self.viewer is not None:
-    #         self.viewer.sync()
-    #         time.sleep(1 / 60)  # 60 FPS
-
-    #     return obs, reward, terminated, truncated, info
-    
 
     def render(self):
         if self.render_mode == "rgb_array" and self.renderer is not None:
